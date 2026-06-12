@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ring-elevation-profile Component Demo</title>
+    <script type="module" src="../dist/index.js"></script>
+    <style>
+/* Inlined into every generated doc page (banira doc --stylesheet) so pages are
+   fully offline — no CDN. Targets the markup banira's DocGen emits: header/main/
+   footer.container, hgroup, sections (#description/#preview/#attributes/...),
+   and API tables. */
+
+:root {
+    color-scheme: light dark;
+    --fg: #1a1a1a;
+    --muted: #666;
+    --bg: #fff;
+    --line: #e2e2e2;
+    --accent: #2b6cb0;
+    --code-bg: #f4f4f5;
+}
+@media (prefers-color-scheme: dark) {
+    :root {
+        --fg: #e6e6e6;
+        --muted: #9aa0a6;
+        --bg: #16181c;
+        --line: #2c2f36;
+        --accent: #6aa9e9;
+        --code-bg: #23262d;
+    }
+}
+
+* { box-sizing: border-box; }
+body {
+    margin: 0;
+    font: 16px/1.6 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    color: var(--fg);
+    background: var(--bg);
+}
+.container { max-width: 56rem; margin: 0 auto; padding: 1.25rem 1.5rem; }
+header.container { border-bottom: 1px solid var(--line); }
+footer.container { border-top: 1px solid var(--line); color: var(--muted); font-size: .875rem; }
+h1 { font-size: 1.6rem; margin: .2rem 0; }
+h2 { font-size: 1.15rem; margin: 2rem 0 .5rem; padding-bottom: .25rem; border-bottom: 1px solid var(--line); }
+a { color: var(--accent); }
+
+#preview {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+    min-height: 8rem;
+    padding: 1.5rem;
+    margin: 1rem 0;
+    border: 1px dashed var(--line);
+    border-radius: .5rem;
+}
+
+table { width: 100%; border-collapse: collapse; margin: .5rem 0 1rem; font-size: .925rem; }
+th, td { text-align: left; padding: .45rem .6rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-weight: 600; color: var(--muted); }
+code { background: var(--code-bg); padding: .1rem .35rem; border-radius: .25rem; font-size: .9em; }
+
+    </style>
+</head>
+<body>
+    <header class="container">
+        <hgroup>
+        <h1>ring-elevation-profile Component Demo</h1>
+        </hgroup>
+    </header>
+    <main class="container">
+        <section id="description"><p>ring-elevation-profile — SVG elevation profile of the Nürburgring Nordschleife (≈300 m of elevation over 20.8 km). Renders an area chart from GPX data (via the <code>gpx-url</code> attribute or ) with optional grid, metric or imperial axis labels, and a hover tooltip showing distance, elevation, and the track section under the pointer.</p></section>
+        <section id="preview">
+        <h2>Preview</h2>
+        <ring-elevation-profile></ring-elevation-profile>
+        </section>
+        
+        <section id="attributes">
+        <h2 id="attributes-title">Attributes</h2>
+        <table aria-labelledby="attributes-title">
+            <thead><tr><th>Attribute</th><th>Type</th><th>Default</th><th>Description</th></tr></thead>
+            <tbody>
+            <tr><td><code>gpx-url</code></td><td></td><td></td><td></td></tr>
+            <tr><td><code>units</code></td><td><code>string</code></td><td></td><td><code>'metric'</code> (default) or <code>'imperial'</code> axis/tooltip units.</td></tr>
+            <tr><td><code>show-grid</code></td><td></td><td></td><td></td></tr>
+            </tbody>
+        </table>
+        </section>
+        <section id="properties">
+        <h2 id="properties-title">Properties</h2>
+        <table aria-labelledby="properties-title">
+            <thead><tr><th>Property</th><th>Type</th><th>Default</th><th>Description</th></tr></thead>
+            <tbody>
+            <tr><td><code>trackData</code></td><td><code>TrackData</code></td><td></td><td>Parsed track data, or null before any GPX has loaded.</td></tr>
+            <tr><td><code>units</code></td><td><code>string</code></td><td></td><td><code>'metric'</code> (default) or <code>'imperial'</code> axis/tooltip units.</td></tr>
+            </tbody>
+        </table>
+        </section>
+        <section id="methods">
+        <h2 id="methods-title">Methods</h2>
+        <table aria-labelledby="methods-title">
+            <thead><tr><th>Method</th><th>Returns</th><th>Description</th></tr></thead>
+            <tbody>
+            <tr><td><code>loadFromString</code></td><td><code>(gpxText: string) =&gt; void</code></td><td>Parse a GPX string and render the profile. Useful for tests and inlined data.</td></tr>
+            </tbody>
+        </table>
+        </section>
+        <section id="events">
+        <h2 id="events-title">Events</h2>
+        <table aria-labelledby="events-title">
+            <thead><tr><th>Event</th><th>Type</th><th>Description</th></tr></thead>
+            <tbody>
+            <tr><td><code>profile-ready</code></td><td><code>CustomEvent</code></td><td></td></tr>
+            <tr><td><code>profile-hover</code></td><td><code>CustomEvent</code></td><td></td></tr>
+            <tr><td><code>profile-click</code></td><td><code>CustomEvent</code></td><td></td></tr>
+            </tbody>
+        </table>
+        </section>
+    </main>
+    <footer class="container">
+      <small>Built with banira</small>
+    </footer>
+</body>
+</html>

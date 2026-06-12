@@ -1,0 +1,47 @@
+{
+  "name": "ring-webcomponents",
+  "version": "1.0.0",
+  "description": "Ring web components — a set of vanilla web components for the Nürburgring, built with banira.",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "customElements": "custom-elements.json",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "custom-elements.json"
+  ],
+  "keywords": [
+    "web-components",
+    "nuerburgring",
+    "ring",
+    "motorsport",
+    "vanilla-js",
+    "banira"
+  ],
+  "author": "Sebastian Schürmann",
+  "license": "ISC",
+  "scripts": {
+    "build": "tsc && npm run manifest",
+    "test": "node --import tsx --test ./test/*.test.ts",
+    "lint": "tsc -p tsconfig.lint.json",
+    "manifest": "banira manifest src/components/*.ts -o custom-elements.json && node scripts/fix-manifest-paths.mjs",
+    "docs": "npm run build && node scripts/gen-docs.mjs",
+    "demo": "banira serve .",
+    "banira": "banira"
+  },
+  "dependencies": {
+    "banira": "0.4.0"
+  },
+  "devDependencies": {
+    "@types/jsdom": "^28.0.3",
+    "@types/node": "^25.9.3",
+    "jsdom": "^29.1.1",
+    "tsx": "^4.22.4"
+  }
+}

@@ -1,0 +1,430 @@
+{
+  "schemaVersion": "2.1.0",
+  "modules": [
+    {
+      "kind": "javascript-module",
+      "path": "dist/components/ring-elevation-profile.js",
+      "declarations": [
+        {
+          "kind": "class",
+          "name": "RingElevationProfile",
+          "customElement": true,
+          "tagName": "ring-elevation-profile",
+          "superclass": {
+            "name": "HTMLElement"
+          },
+          "members": [
+            {
+              "kind": "field",
+              "name": "trackData",
+              "privacy": "public",
+              "description": "Parsed track data, or null before any GPX has loaded.",
+              "type": {
+                "text": "TrackData"
+              }
+            },
+            {
+              "kind": "field",
+              "name": "units",
+              "privacy": "public",
+              "description": "`'metric'` (default) or `'imperial'` axis/tooltip units.",
+              "type": {
+                "text": "string"
+              }
+            },
+            {
+              "kind": "method",
+              "name": "loadFromString",
+              "privacy": "public",
+              "description": "Parse a GPX string and render the profile. Useful for tests and inlined data.",
+              "return": {
+                "type": {
+                  "text": "(gpxText: string) => void"
+                }
+              }
+            }
+          ],
+          "attributes": [
+            {
+              "name": "gpx-url"
+            },
+            {
+              "name": "units",
+              "fieldName": "units",
+              "type": {
+                "text": "string"
+              },
+              "description": "`'metric'` (default) or `'imperial'` axis/tooltip units."
+            },
+            {
+              "name": "show-grid"
+            }
+          ],
+          "events": [
+            {
+              "name": "profile-ready",
+              "type": {
+                "text": "CustomEvent"
+              }
+            },
+            {
+              "name": "profile-hover",
+              "type": {
+                "text": "CustomEvent"
+              }
+            },
+            {
+              "name": "profile-click",
+              "type": {
+                "text": "CustomEvent"
+              }
+            }
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "RingElevationProfile",
+          "declaration": {
+            "name": "RingElevationProfile"
+          }
+        },
+        {
+          "kind": "custom-element-definition",
+          "name": "ring-elevation-profile",
+          "declaration": {
+            "name": "RingElevationProfile"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
+      "path": "dist/components/ring-i18n.js",
+      "declarations": [
+        {
+          "kind": "class",
+          "name": "RingI18n",
+          "customElement": true,
+          "tagName": "ring-i18n",
+          "superclass": {
+            "name": "HTMLElement"
+          },
+          "members": [
+            {
+              "kind": "method",
+              "name": "getCurrentLanguage",
+              "privacy": "public",
+              "description": "The current language code.",
+              "return": {
+                "type": {
+                  "text": "() => string"
+                }
+              }
+            },
+            {
+              "kind": "method",
+              "name": "getLanguages",
+              "privacy": "public",
+              "description": "Language codes with a registered bundle.",
+              "return": {
+                "type": {
+                  "text": "() => string[]"
+                }
+              }
+            },
+            {
+              "kind": "method",
+              "name": "setLanguage",
+              "privacy": "public",
+              "description": "Switch the current language. Unknown languages are ignored. Reflects\nthe `lang` attribute, re-translates `[data-i18n]` elements, notifies\nobservers, and emits `language-changed`.",
+              "return": {
+                "type": {
+                  "text": "(language: string) => void"
+                }
+              }
+            },
+            {
+              "kind": "method",
+              "name": "t",
+              "privacy": "public",
+              "description": "Translate a dot-separated key (e.g. `'sections.Fuchsröhre'` or\n`'ui.totalDistance'`) with `{param}` substitution. Falls back to\nEnglish, then to the key itself. (Named `t` because `translate` is an\ninherited HTMLElement boolean property.)",
+              "return": {
+                "type": {
+                  "text": "(key: string, params?: Record<string, string | number>) => string"
+                }
+              }
+            },
+            {
+              "kind": "method",
+              "name": "translateKey",
+              "privacy": "public",
+              "description": "Alias for {@link t}.",
+              "return": {
+                "type": {
+                  "text": "(key: string, params?: Record<string, string | number>) => string"
+                }
+              }
+            },
+            {
+              "kind": "method",
+              "name": "addTranslations",
+              "privacy": "public",
+              "description": "Register (or extend) the bundle for a language. Existing keys for the\nlanguage are kept unless overridden.",
+              "return": {
+                "type": {
+                  "text": "(language: string, bundle: Partial<TranslationBundle>) => void"
+                }
+              }
+            },
+            {
+              "kind": "method",
+              "name": "registerObserver",
+              "privacy": "public",
+              "description": "Register an observer called with the language code on every change.",
+              "return": {
+                "type": {
+                  "text": "(callback: LanguageObserver) => void"
+                }
+              }
+            },
+            {
+              "kind": "method",
+              "name": "unregisterObserver",
+              "privacy": "public",
+              "description": "Remove a previously registered observer.",
+              "return": {
+                "type": {
+                  "text": "(callback: LanguageObserver) => void"
+                }
+              }
+            },
+            {
+              "kind": "method",
+              "name": "applyTranslations",
+              "privacy": "public",
+              "description": "Translate every element with a `data-i18n=\"<key>\"` attribute under\n`root` (the whole document by default) by setting its text content.",
+              "return": {
+                "type": {
+                  "text": "(root?: ParentNode) => void"
+                }
+              }
+            }
+          ],
+          "attributes": [
+            {
+              "name": "lang"
+            }
+          ],
+          "events": [
+            {
+              "name": "language-changed",
+              "type": {
+                "text": "CustomEvent"
+              }
+            }
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "RingI18n",
+          "declaration": {
+            "name": "RingI18n"
+          }
+        },
+        {
+          "kind": "custom-element-definition",
+          "name": "ring-i18n",
+          "declaration": {
+            "name": "RingI18n"
+          }
+        }
+      ]
+    },
+    {
+      "kind": "javascript-module",
+      "path": "dist/components/ring-track-map.js",
+      "declarations": [
+        {
+          "kind": "class",
+          "name": "RingTrackMap",
+          "customElement": true,
+          "tagName": "ring-track-map",
+          "superclass": {
+            "name": "HTMLElement"
+          },
+          "members": [
+            {
+              "kind": "field",
+              "name": "trackData",
+              "privacy": "public",
+              "description": "Parsed track data, or null before any GPX has loaded.",
+              "type": {
+                "text": "TrackData"
+              }
+            },
+            {
+              "kind": "field",
+              "name": "sections",
+              "privacy": "public",
+              "description": "The track sliced into named sections (empty before data loads).",
+              "type": {
+                "text": "TrackSection[]"
+              }
+            },
+            {
+              "kind": "method",
+              "name": "loadFromString",
+              "privacy": "public",
+              "description": "Parse a GPX string and render the track. Useful for tests and inlined data.",
+              "return": {
+                "type": {
+                  "text": "(gpxText: string) => void"
+                }
+              }
+            },
+            {
+              "kind": "method",
+              "name": "highlightSection",
+              "privacy": "public",
+              "description": "Select and highlight a single section by name.",
+              "return": {
+                "type": {
+                  "text": "(sectionName: string) => void"
+                }
+              }
+            },
+            {
+              "kind": "method",
+              "name": "highlightSections",
+              "privacy": "public",
+              "description": "Highlight a set of sections (reflected in the `highlight-sections` attribute).",
+              "return": {
+                "type": {
+                  "text": "(sectionNames: string | string[]) => void"
+                }
+              }
+            },
+            {
+              "kind": "method",
+              "name": "setSectionColor",
+              "privacy": "public",
+              "description": "Assign a custom highlight color to a section.",
+              "return": {
+                "type": {
+                  "text": "(sectionName: string, color: string) => void"
+                }
+              }
+            },
+            {
+              "kind": "method",
+              "name": "setSectionColors",
+              "privacy": "public",
+              "description": "Assign custom highlight colors for several sections at once.",
+              "return": {
+                "type": {
+                  "text": "(colorMap: Record<string, string>) => void"
+                }
+              }
+            },
+            {
+              "kind": "method",
+              "name": "clearSectionColors",
+              "privacy": "public",
+              "description": "Remove all custom section colors.",
+              "return": {
+                "type": {
+                  "text": "() => void"
+                }
+              }
+            },
+            {
+              "kind": "method",
+              "name": "focusSection",
+              "privacy": "public",
+              "description": "Zoom the viewBox to a section's bounding box and select it.",
+              "return": {
+                "type": {
+                  "text": "(sectionName: string, padding?: number) => void"
+                }
+              }
+            },
+            {
+              "kind": "method",
+              "name": "resetView",
+              "privacy": "public",
+              "description": "Reset zoom, selection, and highlights to the initial full-track view.",
+              "return": {
+                "type": {
+                  "text": "() => void"
+                }
+              }
+            }
+          ],
+          "attributes": [
+            {
+              "name": "gpx-url"
+            },
+            {
+              "name": "highlight-sections"
+            },
+            {
+              "name": "show-labels"
+            }
+          ],
+          "events": [
+            {
+              "name": "map-ready",
+              "type": {
+                "text": "CustomEvent"
+              }
+            },
+            {
+              "name": "section-click",
+              "type": {
+                "text": "CustomEvent"
+              }
+            },
+            {
+              "name": "section-hover",
+              "type": {
+                "text": "CustomEvent"
+              }
+            },
+            {
+              "name": "section-focus",
+              "type": {
+                "text": "CustomEvent"
+              }
+            },
+            {
+              "name": "view-reset",
+              "type": {
+                "text": "CustomEvent"
+              }
+            }
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "kind": "js",
+          "name": "RingTrackMap",
+          "declaration": {
+            "name": "RingTrackMap"
+          }
+        },
+        {
+          "kind": "custom-element-definition",
+          "name": "ring-track-map",
+          "declaration": {
+            "name": "RingTrackMap"
+          }
+        }
+      ]
+    }
+  ]
+}

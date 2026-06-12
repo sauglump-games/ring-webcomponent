@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ring-webcomponents — Nürburgring Nordschleife demo</title>
+    <script type="module" src="../dist/index.js"></script>
+    <style>
+        body {
+            margin: 0;
+            font: 16px/1.6 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+            color: #1a1a1a;
+            background: #fafafa;
+        }
+        .container {
+            max-width: 960px;
+            margin: 0 auto;
+            padding: 24px 16px 64px;
+        }
+        h1 { margin: 0 0 4px; }
+        .subtitle { color: #666; margin: 0 0 24px; }
+        .card {
+            background: #fff;
+            border: 1px solid #e2e2e2;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 24px;
+        }
+        .card h2 { margin: 0 0 12px; font-size: 18px; }
+        ring-track-map { height: 600px; }
+        .controls { margin-bottom: 12px; display: flex; gap: 8px; flex-wrap: wrap; }
+        button {
+            font: inherit;
+            font-size: 14px;
+            padding: 6px 12px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            background: #fff;
+            cursor: pointer;
+        }
+        button:hover { background: #f0f0f0; }
+        #event-log {
+            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+            font-size: 12px;
+            background: #16181c;
+            color: #9fe8a4;
+            border-radius: 6px;
+            padding: 12px;
+            height: 140px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <ring-i18n></ring-i18n>
+
+    <div class="container">
+        <h1>ring-webcomponents</h1>
+        <p class="subtitle">Vanilla web components for the Nürburgring Nordschleife — built with banira.</p>
+
+        <div class="card">
+            <h2>&lt;ring-i18n&gt; — <span data-i18n="ui.language">Language</span></h2>
+            <div class="controls">
+                <button id="btn-en" data-i18n="ui.english">English</button>
+                <button id="btn-de" data-i18n="ui.german">Deutsch</button>
+            </div>
+            <p data-i18n="ui.clickSection">Click on a section to view details</p>
+        </div>
+
+        <div class="card">
+            <h2>&lt;ring-track-map&gt; — <span data-i18n="ui.trackMap">Track Map</span></h2>
+            <div class="controls">
+                <button id="btn-labels">Toggle labels</button>
+                <button id="btn-highlight">Highlight Fuchsröhre + Brünnchen</button>
+                <button id="btn-focus">Focus Caracciola-Karussell section</button>
+                <button id="btn-reset">Reset view</button>
+            </div>
+            <ring-track-map gpx-url="./nordschleife.gpx" show-labels></ring-track-map>
+        </div>
+
+        <div class="card">
+            <h2>&lt;ring-elevation-profile&gt; — <span data-i18n="ui.elevationProfile">Elevation Profile</span></h2>
+            <div class="controls">
+                <button id="btn-units">Toggle metric / imperial</button>
+                <button id="btn-grid">Toggle grid</button>
+            </div>
+            <ring-elevation-profile gpx-url="./nordschleife.gpx" show-grid></ring-elevation-profile>
+        </div>
+
+        <div class="card">
+            <h2>Events</h2>
+            <div id="event-log"></div>
+        </div>
+    </div>
+
+    <script type="module">
+        const i18n = document.querySelector('ring-i18n');
+        const map = document.querySelector('ring-track-map');
+        const profile = document.querySelector('ring-elevation-profile');
+        const log = document.getElementById('event-log');
+
+        const write = (line) => {
+            log.textContent = `${line}\n${log.textContent}`.split('\n').slice(0, 50).join('\n');
+        };
+
+        for (const type of ['map-ready', 'section-click', 'section-hover', 'section-focus', 'view-reset']) {
+            map.addEventListener(type, (e) => {
+                const name = e.detail?.section?.name ?? e.detail?.section?.section?.name ?? '';
+                write(`${type}${name ? `: ${name}` : ''}`);
+            });
+        }
+        for (const type of ['profile-ready', 'profile-click']) {
+            profile.addEventListener(type, (e) => {
+                const d = e.detail?.distance;
+                write(`${type}${d != null ? `: ${d.toFixed(2)} km, ${Math.round(e.detail.elevation)} m` : ''}`);
+            });
+        }
+
+        i18n.addEventListener('language-changed', (e) => write(`language-changed: ${e.detail.language}`));
+        document.getElementById('btn-en').addEventListener('click', () => i18n.setLanguage('en'));
+        document.getElementById('btn-de').addEventListener('click', () => i18n.setLanguage('de'));
+
+        document.getElementById('btn-labels').addEventListener('click', () => {
+            map.toggleAttribute('show-labels');
+        });
+        document.getElementById('btn-highlight').addEventListener('click', () => {
+            map.setSectionColors({ 'Fuchsröhre': '#e67e22', 'Brünnchen': '#8e44ad' });
+            map.highlightSections(['Fuchsröhre', 'Brünnchen']);
+        });
+        document.getElementById('btn-focus').addEventListener('click', () => {
+            map.focusSection('Klostertalkurve');
+        });
+        document.getElementById('btn-reset').addEventListener('click', () => {
+            map.resetView();
+        });
+        document.getElementById('btn-units').addEventListener('click', () => {
+            profile.units = profile.units === 'imperial' ? 'metric' : 'imperial';
+        });
+        document.getElementById('btn-grid').addEventListener('click', () => {
+            profile.toggleAttribute('show-grid');
+        });
+    </script>
+</body>
+</html>
