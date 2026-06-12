@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gradient heatmap — ring-webcomponents</title>
+    <style>
+        body {
+            margin: 0;
+            font: 16px/1.6 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+            color: #1a1a1a;
+            background: #fafafa;
+        }
+        .container { max-width: 1100px; margin: 0 auto; padding: 24px 16px 64px; }
+        h1 { margin: 0 0 4px; }
+        .subtitle { color: #666; margin: 0 0 16px; }
+        nav { margin-bottom: 24px; font-size: 14px; }
+        nav a { color: #2b6cb0; }
+        .controls { margin-bottom: 16px; display: flex; gap: 8px; flex-wrap: wrap; }
+        button {
+            font: inherit; font-size: 14px; padding: 6px 12px;
+            border: 1px solid #ccc; border-radius: 6px; background: #fff; cursor: pointer;
+        }
+        button:hover { background: #f0f0f0; }
+        button.active { background: #2b6cb0; color: #fff; border-color: #2b6cb0; }
+        .layout { display: grid; grid-template-columns: 1fr 320px; gap: 24px; align-items: start; }
+        @media (max-width: 800px) { .layout { grid-template-columns: 1fr; } }
+        .card { background: #fff; border: 1px solid #e2e2e2; border-radius: 8px; padding: 16px; }
+        /* Make the heat colors carry the visual: thin out the base track. */
+        ring-track-map { height: 560px; --track-color: #d5d8da; --track-width: 2px; }
+        .legend-bar {
+            height: 14px; border-radius: 7px;
+            background: linear-gradient(to right, hsl(120 80% 40%), hsl(60 85% 45%), hsl(0 80% 45%));
+            margin: 8px 0 4px;
+        }
+        .legend-labels { display: flex; justify-content: space-between; font-size: 12px; color: #666; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 16px; }
+        th, td { text-align: left; padding: 4px 6px; border-bottom: 1px solid #eee; }
+        td.value { text-align: right; font-variant-numeric: tabular-nums; }
+        .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Heatmap mode</h1>
+        <p class="subtitle">Every section colored by a metric — pure <code>setSectionColors()</code>, zero new component code.</p>
+        <nav><a href="./index.html">← demo index</a> · <a href="./explorer.html">section explorer →</a></nav>
+
+        <div class="controls">
+            <button id="mode-avg" class="active">Average gradient</button>
+            <button id="mode-peak">Peak gradient</button>
+            <button id="mode-ele">Elevation</button>
+        </div>
+
+        <div class="layout">
+            <div class="card">
+                <ring-track-map gpx-url="./nordschleife.gpx"></ring-track-map>
+            </div>
+            <div class="card">
+                <strong id="legend-title">Average gradient</strong>
+                <div class="legend-bar"></div>
+                <div class="legend-labels">
+                    <span id="legend-min"></span>
+                    <span id="legend-max"></span>
+                </div>
+                <table>
+                    <thead><tr><th>Section</th><th id="value-header" class="value">%</th></tr></thead>
+                    <tbody id="ranking"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { calculateGradient } from '../dist/index.js';
+
+        const map = document.querySelector('ring-track-map');
+
+        const MODES = {
+            avg: {
+                title: 'Average gradient',
+                unit: '%',
+                format: (v) => `${v.toFixed(1)} %`,
+                // Mean absolute gradient across the section's segments: how
+                // relentlessly up-or-down the section is overall.
+                value(section) {
+                    const points = section.points;
+                    if (points.length < 2) return 0;
+                    let sum = 0;
+                    for (let i = 1; i < points.length; i++) {
+                        sum += Math.abs(gradientOf(points[i - 1], points[i]));
+                    }
+                    return sum / (points.length - 1);
+                },
+            },
+            peak: {
+                title: 'Peak gradient',
+                unit: '%',
+                format: (v) => `${v.toFixed(1)} %`,
+                value(section) {
+                    const points = section.points;
+                    let peak = 0;
+                    for (let i = 1; i < points.length; i++) {
+                        peak = Math.max(peak, Math.abs(gradientOf(points[i - 1], points[i])));
+                    }
+                    return peak;
+                },
+            },
+            ele: {
+                title: 'Mean elevation',
+                unit: 'm',
+                format: (v) => `${Math.round(v)} m`,
+                value(section) {
+                    const points = section.points;
+                    if (points.length === 0) return 0;
+                    return points.reduce((sum, p) => sum + p.ele, 0) / points.length;
+                },
+            },
+        };
+
+        function gradientOf(a, b) {
+            return calculateGradient(a.ele, b.ele, b.distance - a.distance);
+        }
+
+        /** Green (low) → orange → red (high). */
+        function heatColor(t) {
+            return `hsl(${Math.round(120 * (1 - t))} 80% 42%)`;
+        }
+
+        function applyMode(modeKey) {
+            const mode = MODES[modeKey];
+            const sections = map.sections;
+            if (!sections.length) return;
+
+            const values = sections.map((s) => ({ section: s, value: mode.value(s) }));
+            const min = Math.min(...values.map((v) => v.value));
+            const max = Math.max(...values.map((v) => v.value));
+            const range = max - min || 1;
+
+            const colors = {};
+            for (const { section, value } of values) {
+                colors[section.name] = heatColor((value - min) / range);
+            }
+            map.setSectionColors(colors);
+            map.highlightSections(sections.map((s) => s.name));
+
+            document.getElementById('legend-title').textContent = mode.title;
+            document.getElementById('legend-min').textContent = mode.format(min);
+            document.getElementById('legend-max').textContent = mode.format(max);
+            document.getElementById('value-header').textContent = mode.unit;
+
+            const ranking = document.getElementById('ranking');
+            ranking.innerHTML = '';
+            for (const { section, value } of [...values].sort((a, b) => b.value - a.value)) {
+                const tr = document.createElement('tr');
+                const nameTd = document.createElement('td');
+                const swatch = document.createElement('span');
+                swatch.className = 'swatch';
+                swatch.style.background = colors[section.name];
+                nameTd.append(swatch, section.name);
+                const valueTd = document.createElement('td');
+                valueTd.className = 'value';
+                valueTd.textContent = mode.format(value);
+                tr.append(nameTd, valueTd);
+                ranking.appendChild(tr);
+            }
+        }
+
+        let currentMode = 'avg';
+        for (const key of Object.keys(MODES)) {
+            document.getElementById(`mode-${key}`).addEventListener('click', (e) => {
+                currentMode = key;
+                document.querySelectorAll('.controls button').forEach((b) => b.classList.remove('active'));
+                e.currentTarget.classList.add('active');
+                applyMode(key);
+            });
+        }
+
+        map.addEventListener('map-ready', () => applyMode(currentMode));
+    </script>
+</body>
+</html>

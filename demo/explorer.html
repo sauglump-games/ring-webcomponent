@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Section explorer — ring-webcomponents</title>
+    <style>
+        body {
+            margin: 0;
+            font: 16px/1.6 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+            color: #1a1a1a;
+            background: #fafafa;
+        }
+        .container { max-width: 1100px; margin: 0 auto; padding: 24px 16px 64px; }
+        h1 { margin: 0 0 4px; }
+        .subtitle { color: #666; margin: 0 0 16px; }
+        nav { margin-bottom: 24px; font-size: 14px; }
+        nav a { color: #2b6cb0; }
+        .controls { margin-bottom: 16px; display: flex; gap: 8px; flex-wrap: wrap; }
+        button {
+            font: inherit; font-size: 14px; padding: 6px 12px;
+            border: 1px solid #ccc; border-radius: 6px; background: #fff; cursor: pointer;
+        }
+        button:hover { background: #f0f0f0; }
+        button.active { background: #2b6cb0; color: #fff; border-color: #2b6cb0; }
+        .layout { display: grid; grid-template-columns: 1fr 360px; gap: 24px; align-items: start; }
+        @media (max-width: 800px) { .layout { grid-template-columns: 1fr; } }
+        .card {
+            background: #fff; border: 1px solid #e2e2e2; border-radius: 8px; padding: 16px;
+        }
+        ring-track-map { height: 560px; }
+        #info-card h2 { margin: 0 0 2px; font-size: 20px; }
+        #info-card .alt-names { color: #666; font-size: 13px; margin: 0 0 12px; }
+        #info-card .desc { margin: 0 0 16px; }
+        #info-card .hint { color: #666; }
+        dl.stats { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 0 0 16px; font-size: 14px; }
+        dl.stats dt { color: #666; }
+        dl.stats dd { margin: 0; font-variant-numeric: tabular-nums; }
+        ul.features { margin: 0 0 16px; padding-left: 20px; font-size: 14px; }
+        .card-actions { display: flex; gap: 8px; }
+    </style>
+</head>
+<body>
+    <ring-i18n></ring-i18n>
+
+    <div class="container">
+        <h1>Section explorer</h1>
+        <p class="subtitle">Click a section of the Nordschleife to open its encyclopedia card.</p>
+        <nav><a href="./index.html">← demo index</a> · <a href="./heatmap.html">gradient heatmap →</a></nav>
+
+        <div class="controls">
+            <button id="btn-en" data-i18n="ui.english">English</button>
+            <button id="btn-de" data-i18n="ui.german">Deutsch</button>
+        </div>
+
+        <div class="layout">
+            <div class="card">
+                <ring-track-map gpx-url="./nordschleife.gpx"></ring-track-map>
+            </div>
+            <div class="card" id="info-card">
+                <p class="hint" data-i18n="ui.clickSection">Click on a section to view details</p>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { calculateGradient } from '../dist/index.js';
+
+        const i18n = document.querySelector('ring-i18n');
+        const map = document.querySelector('ring-track-map');
+        const infoCard = document.getElementById('info-card');
+
+        // Demo-level labels the built-in bundles don't carry.
+        i18n.addTranslations('en', { ui: {
+            length: 'Length',
+            elevationRangeLabel: 'Elevation',
+            steepestGradient: 'Steepest gradient',
+            alternativeNames: 'Also known as',
+            notableFeatures: 'Notable features',
+            focusOnMap: 'Zoom to section',
+            resetView: 'Reset view',
+        }});
+        i18n.addTranslations('de', { ui: {
+            length: 'Länge',
+            elevationRangeLabel: 'Höhe',
+            steepestGradient: 'Steilste Stelle',
+            alternativeNames: 'Auch bekannt als',
+            notableFeatures: 'Besonderheiten',
+            focusOnMap: 'Abschnitt zoomen',
+            resetView: 'Ansicht zurücksetzen',
+        }});
+
+        document.getElementById('btn-en').addEventListener('click', () => i18n.setLanguage('en'));
+        document.getElementById('btn-de').addEventListener('click', () => i18n.setLanguage('de'));
+
+        let currentSection = null;
+
+        /** Stats derived from the section's track points. */
+        function sectionStats(section) {
+            const points = section.points;
+            if (points.length < 2) return null;
+
+            const lengthKm = points[points.length - 1].distance - points[0].distance;
+            let minEle = Infinity, maxEle = -Infinity, steepest = 0;
+            for (const p of points) {
+                minEle = Math.min(minEle, p.ele);
+                maxEle = Math.max(maxEle, p.ele);
+            }
+            for (let i = 1; i < points.length; i++) {
+                const g = calculateGradient(points[i - 1].ele, points[i].ele, points[i].distance - points[i - 1].distance);
+                if (Math.abs(g) > Math.abs(steepest)) steepest = g;
+            }
+            return { lengthKm, minEle, maxEle, steepest };
+        }
+
+        function translatedName(name) {
+            const t = i18n.t(`sections.${name}`);
+            return t === `sections.${name}` ? name : t;
+        }
+
+        function renderCard(section) {
+            if (!section) return;
+            infoCard.innerHTML = '';
+
+            const h2 = document.createElement('h2');
+            h2.textContent = translatedName(section.name);
+            infoCard.appendChild(h2);
+
+            if (section.alternativeNames.length) {
+                const alt = document.createElement('p');
+                alt.className = 'alt-names';
+                alt.textContent = `${i18n.t('ui.alternativeNames')}: ${section.alternativeNames.join(', ')}`;
+                infoCard.appendChild(alt);
+            }
+
+            if (section.desc) {
+                const desc = document.createElement('p');
+                desc.className = 'desc';
+                desc.textContent = section.desc;
+                infoCard.appendChild(desc);
+            }
+
+            const stats = sectionStats(section);
+            if (stats) {
+                const dl = document.createElement('dl');
+                dl.className = 'stats';
+                const rows = [
+                    [i18n.t('ui.length'), `${stats.lengthKm.toFixed(2)} km (km ${section.startKm}–${section.endKm})`],
+                    [i18n.t('ui.elevationRangeLabel'), `${Math.round(stats.minEle)}–${Math.round(stats.maxEle)} m`],
+                    [i18n.t('ui.steepestGradient'), `${stats.steepest > 0 ? '+' : ''}${stats.steepest.toFixed(1)} %`],
+                ];
+                for (const [term, value] of rows) {
+                    const dt = document.createElement('dt');
+                    dt.textContent = term;
+                    const dd = document.createElement('dd');
+                    dd.textContent = value;
+                    dl.append(dt, dd);
+                }
+                infoCard.appendChild(dl);
+            }
+
+            if (section.notableFeatures.length) {
+                const h3 = document.createElement('p');
+                h3.className = 'alt-names';
+                h3.textContent = i18n.t('ui.notableFeatures');
+                infoCard.appendChild(h3);
+                const ul = document.createElement('ul');
+                ul.className = 'features';
+                for (const feature of section.notableFeatures) {
+                    const li = document.createElement('li');
+                    li.textContent = feature;
+                    ul.appendChild(li);
+                }
+                infoCard.appendChild(ul);
+            }
+
+            const actions = document.createElement('div');
+            actions.className = 'card-actions';
+            const focusBtn = document.createElement('button');
+            focusBtn.textContent = i18n.t('ui.focusOnMap');
+            focusBtn.addEventListener('click', () => map.focusSection(section.name));
+            const resetBtn = document.createElement('button');
+            resetBtn.textContent = i18n.t('ui.resetView');
+            resetBtn.addEventListener('click', () => map.resetView());
+            actions.append(focusBtn, resetBtn);
+            infoCard.appendChild(actions);
+        }
+
+        map.addEventListener('section-click', (e) => {
+            currentSection = map.sections.find((s) => s.name === e.detail.section.name) ?? null;
+            renderCard(currentSection);
+        });
+
+        i18n.addEventListener('language-changed', () => renderCard(currentSection));
+    </script>
+</body>
+</html>

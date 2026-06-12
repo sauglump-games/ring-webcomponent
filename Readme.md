@@ -77,6 +77,12 @@ npm run docs      # offline HTML doc pages into docs/
 npm run demo      # serve the repo; open http://localhost:8080/demo/
 ```
 
+Besides the main page, the demo ships a [section explorer /
+encyclopedia](./demo/explorer.html) (click a section for description,
+alternative names, notable features, and computed stats — bilingual via
+`<ring-i18n>`) and a [heatmap mode](./demo/heatmap.html) (sections colored by
+average/peak gradient or elevation with a legend and ranking table).
+
 ### Layout
 
 ```
