@@ -1,5 +1,10 @@
 # ring-webcomponents
 
+> ⚠️ **Under development — not production-ready.** This project is an early
+> work in progress (pre-1.0). APIs, attributes, events, and behavior may change
+> without notice, and it has not been hardened or verified for production use.
+> Use at your own risk.
+
 Vanilla web components for the **Nürburgring Nordschleife** — built with
 [banira](https://github.com/sebs/banira): no bundler, no framework, just web
 standards and TypeScript.

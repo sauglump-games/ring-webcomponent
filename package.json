@@ -1,6 +1,6 @@
 {
   "name": "ring-webcomponents",
-  "version": "1.0.0",
+  "version": "0.0.1",
   "description": "Ring web components — a set of vanilla web components for the Nürburgring, built with banira.",
   "type": "module",
   "main": "dist/index.js",
