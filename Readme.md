@@ -96,4 +96,18 @@ prototypes/     the original vanilla-JS prototype this port is based on
 
 ## License
 
-ISC — © Sebastian Schürmann
+ring-webcomponents is **dual-licensed**. Choose whichever fits your use:
+
+- **GPL-3.0-or-later** — free and open-source use under the GNU General Public
+  License v3 (or later); see [LICENSE](./LICENSE). Distributing a larger work
+  (an app or bundle) that includes these components requires releasing that
+  work's complete source under the GPL.
+- **Commercial license** — for shipping inside a proprietary or closed-source
+  product without the GPL's source-disclosure obligations; see
+  [LICENSE-COMMERCIAL.md](./LICENSE-COMMERCIAL.md).
+
+SPDX: `GPL-3.0-or-later OR LicenseRef-Commercial`.
+
+For a commercial license, contact Sebastian Schürmann &lt;sebs@2xs.org&gt;.
+
+© 2026 Sebastian Schürmann

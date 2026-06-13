@@ -14,7 +14,9 @@
   },
   "files": [
     "dist",
-    "custom-elements.json"
+    "custom-elements.json",
+    "LICENSE",
+    "LICENSE-COMMERCIAL.md"
   ],
   "keywords": [
     "web-components",
@@ -25,7 +27,7 @@
     "banira"
   ],
   "author": "Sebastian Schürmann",
-  "license": "ISC",
+  "license": "GPL-3.0-or-later OR LicenseRef-Commercial",
   "scripts": {
     "build": "tsc && npm run manifest",
     "prepublishOnly": "npm run build && npm test",
