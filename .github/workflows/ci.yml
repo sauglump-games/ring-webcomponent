@@ -1,0 +1,106 @@
+name: CI
+
+# Test + build on every push and PR; deploy the demos and generated component
+# docs to GitHub Pages on main.
+#
+# One-time setup: repository Settings → Pages → "Build and deployment" →
+# Source = "GitHub Actions" (no gh-pages branch is used or needed).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Lint, test, build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+
+  deploy-demos:
+    name: Deploy demos to GitHub Pages
+    needs: test
+    # Only publish from main pushes — never from PRs (which may be untrusted).
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+
+      # `docs` runs `build` first, so this produces both dist/ and docs/.
+      - name: Build bundle and component docs
+        run: npm run docs
+
+      - name: Assemble Pages site
+        run: |
+          set -euo pipefail
+          rm -rf _site
+          mkdir -p _site
+          # Mirror the repo layout so the demos' and docs' relative paths
+          # (../dist/index.js, ../assets/docs.css) resolve unchanged.
+          cp -r dist demo docs assets _site/
+          cat > _site/index.html <<'HTML'
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>ring-webcomponents</title>
+            <style>
+              body { margin: 0; font: 16px/1.6 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; color: #1a1a1a; background: #fafafa; }
+              main { max-width: 720px; margin: 0 auto; padding: 48px 16px; }
+              h1 { margin: 0 0 4px; }
+              p.lead { color: #666; margin: 0 0 32px; }
+              ul { list-style: none; padding: 0; display: grid; gap: 12px; }
+              a.card { display: block; padding: 16px; border: 1px solid #e2e2e2; border-radius: 8px; background: #fff; text-decoration: none; color: inherit; }
+              a.card:hover { border-color: #2b6cb0; }
+              a.card strong { color: #2b6cb0; }
+              a.card span { display: block; color: #666; font-size: 14px; }
+            </style>
+          </head>
+          <body>
+            <main>
+              <h1>ring-webcomponents</h1>
+              <p class="lead">Vanilla web components for the Nürburgring Nordschleife — built with banira.</p>
+              <ul>
+                <li><a class="card" href="./demo/"><strong>Interactive demo</strong><span>Track map, elevation profile, and language switching.</span></a></li>
+                <li><a class="card" href="./demo/explorer.html"><strong>Section explorer</strong><span>Click a section for its encyclopedia card and stats.</span></a></li>
+                <li><a class="card" href="./demo/heatmap.html"><strong>Gradient heatmap</strong><span>Sections colored by gradient or elevation.</span></a></li>
+                <li><a class="card" href="./docs/"><strong>Component docs</strong><span>Generated API reference for each &lt;ring-*&gt; element.</span></a></li>
+              </ul>
+            </main>
+          </body>
+          </html>
+          HTML
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deploy
+        uses: actions/deploy-pages@v4
