@@ -96,9 +96,10 @@ code { background: var(--code-bg); padding: .1rem .35rem; border-radius: .25rem;
             <tbody>
             <tr><td><code>getCurrentLanguage</code></td><td><code>() =&gt; string</code></td><td>The current language code.</td></tr>
             <tr><td><code>getLanguages</code></td><td><code>() =&gt; string[]</code></td><td>Language codes with a registered bundle.</td></tr>
-            <tr><td><code>setLanguage</code></td><td><code>(language: string) =&gt; void</code></td><td>Switch the current language. Unknown languages are ignored. Reflects
-the <code>lang</code> attribute, re-translates <code>[data-i18n]</code> elements, notifies
-observers, and emits <code>language-changed</code>.</td></tr>
+            <tr><td><code>setLanguage</code></td><td><code>(language: string) =&gt; void</code></td><td>Switch the current language. Accepts BCP-47 / cased tags
+(<code>'de-DE'</code>, <code>'DE'</code> → <code>de</code>); unresolvable languages are ignored. Reflects
+the canonical code in the <code>lang</code> attribute, re-translates <code>[data-i18n]</code>
+elements, notifies observers, and emits <code>language-changed</code>.</td></tr>
             <tr><td><code>t</code></td><td><code>(key: string, params?: Record&lt;string, string | number&gt;) =&gt; string</code></td><td>Translate a dot-separated key (e.g. <code>'sections.Fuchsröhre'</code> or
 <code>'ui.totalDistance'</code>) with <code>{param}</code> substitution. Falls back to
 English, then to the key itself. (Named <code>t</code> because <code>translate</code> is an

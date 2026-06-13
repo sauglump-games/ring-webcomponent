@@ -145,3 +145,62 @@ describe('ring-i18n', () => {
         assert.strictEqual(heading.textContent, 'Streckenkarte');
     });
 });
+
+// --- regression tests for bugs.md fixes ---
+
+describe('ring-i18n robustness (bugs.md fixes)', () => {
+    it('resolves a region-tagged language to its base bundle (#26)', () => {
+        const el = make();
+        el.setLanguage('de-DE');
+        assert.strictEqual(el.getCurrentLanguage(), 'de');
+        assert.strictEqual(el.t('ui.elevation'), 'Höhe');
+    });
+
+    it('resolves a cased language tag (#26)', () => {
+        const el = make();
+        el.setAttribute('lang', 'DE');
+        assert.strictEqual(el.getCurrentLanguage(), 'de');
+    });
+
+    it('honors a region-tagged lang attribute on connect (#26)', () => {
+        const el = make({ lang: 'de-CH' });
+        assert.strictEqual(el.getCurrentLanguage(), 'de');
+    });
+
+    it('isolates a throwing observer: language still switches and the event still fires (#25)', () => {
+        const el = make();
+        const events: string[] = [];
+        let secondCalled = false;
+        el.registerObserver(() => {
+            throw new Error('boom');
+        });
+        el.registerObserver(() => (secondCalled = true));
+        el.addEventListener('language-changed', (e) => events.push((e as CustomEvent).detail.language));
+
+        assert.doesNotThrow(() => el.setLanguage('de'));
+        assert.strictEqual(el.getCurrentLanguage(), 'de');
+        assert.strictEqual(secondCalled, true, 'later observers still run');
+        assert.deepStrictEqual(events, ['de'], 'language-changed still emitted');
+    });
+
+    it('re-reflects the language when the lang attribute is removed (#27)', () => {
+        const el = make();
+        el.setLanguage('de');
+        el.removeAttribute('lang');
+        assert.strictEqual(el.getCurrentLanguage(), 'de');
+        assert.strictEqual(el.getAttribute('lang'), 'de');
+    });
+
+    it('keeps authored fallback text for an unknown data-i18n key (#28)', () => {
+        const span = document.createElement('span');
+        span.setAttribute('data-i18n', 'ui.someAppSpecificKey');
+        span.textContent = 'Sensible fallback';
+        document.body.appendChild(span);
+
+        const el = make();
+        assert.strictEqual(span.textContent, 'Sensible fallback');
+        el.setLanguage('de'); // a language change must not clobber it either
+        assert.strictEqual(span.textContent, 'Sensible fallback');
+        span.remove();
+    });
+});

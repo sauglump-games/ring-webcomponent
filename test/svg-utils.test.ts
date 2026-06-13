@@ -124,3 +124,52 @@ describe('createSVGElement', () => {
         assert.strictEqual(el.getAttribute('data-section'), 'x');
     });
 });
+
+// --- regression tests for bugs.md fixes ---
+
+describe('gpsToSVG degenerate inputs (bug #1 projection)', () => {
+    const pt = (lat: number, lon: number): { lat: number; lon: number; ele: number; name: string; distance: number; segment: number } => ({
+        lat,
+        lon,
+        ele: 0,
+        name: '',
+        distance: 0,
+        segment: 0,
+    });
+
+    it('projects a single point to a finite viewport centre (not NaN)', () => {
+        const [coord] = svgUtils.gpsToSVG([pt(50.34, 6.96)], 800, 600, 40);
+        assert.ok(Number.isFinite(coord.x) && Number.isFinite(coord.y), `got ${coord.x},${coord.y}`);
+        assert.ok(Math.abs(coord.x - 400) < 1e-6 && Math.abs(coord.y - 300) < 1e-6);
+    });
+
+    it('projects identical points without producing NaN', () => {
+        const coords = svgUtils.gpsToSVG([pt(50.34, 6.96), pt(50.34, 6.96)], 800, 600, 40);
+        assert.ok(coords.every((c) => Number.isFinite(c.x) && Number.isFinite(c.y)));
+    });
+
+    it('projects a perfectly straight east–west line (zero lat range) without NaN', () => {
+        const coords = svgUtils.gpsToSVG([pt(50.34, 6.96), pt(50.34, 6.99)], 800, 600, 40);
+        assert.ok(coords.every((c) => Number.isFinite(c.x) && Number.isFinite(c.y)));
+        assert.ok(coords[0].x < coords[1].x);
+    });
+});
+
+describe('generateTrackPath segment breaks (bug #20)', () => {
+    it('starts a fresh subpath at each segment boundary', () => {
+        const coords = svgUtils.gpsToSVG(data.trackPoints, 800, 600, 40); // fixture: single segment
+        const single = svgUtils.generateTrackPath(coords, false);
+        assert.strictEqual((single.match(/M /g) ?? []).length, 1);
+    });
+
+    it('produces one move command per <trkseg>', async () => {
+        const { GPXParser } = await import('../src/lib/gpx-parser.js');
+        const multi = GPXParser.parse(`<gpx><trk>
+            <trkseg><trkpt lat="50.34" lon="6.96"><ele>1</ele></trkpt><trkpt lat="50.34" lon="6.97"><ele>1</ele></trkpt></trkseg>
+            <trkseg><trkpt lat="50.34" lon="8.00"><ele>1</ele></trkpt><trkpt lat="50.34" lon="8.01"><ele>1</ele></trkpt></trkseg>
+        </trk></gpx>`);
+        const coords = svgUtils.gpsToSVG(multi.trackPoints, 800, 600, 40);
+        const path = svgUtils.generateTrackPath(coords, false);
+        assert.strictEqual((path.match(/M /g) ?? []).length, 2, `expected 2 subpaths, got "${path}"`);
+    });
+});

@@ -28,6 +28,7 @@
   "license": "ISC",
   "scripts": {
     "build": "tsc && npm run manifest",
+    "prepublishOnly": "npm run build && npm test",
     "test": "node --import tsx --test ./test/*.test.ts",
     "lint": "tsc -p tsconfig.lint.json",
     "manifest": "banira manifest src/components/*.ts -o custom-elements.json && node scripts/fix-manifest-paths.mjs",

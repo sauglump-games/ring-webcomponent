@@ -18,7 +18,7 @@
               "kind": "field",
               "name": "trackData",
               "privacy": "public",
-              "description": "Parsed track data, or null before any GPX has loaded.",
+              "description": "Parsed track data (a shallow copy), or null before any GPX has loaded.",
               "type": {
                 "text": "TrackData"
               }
@@ -138,7 +138,7 @@
               "kind": "method",
               "name": "setLanguage",
               "privacy": "public",
-              "description": "Switch the current language. Unknown languages are ignored. Reflects\nthe `lang` attribute, re-translates `[data-i18n]` elements, notifies\nobservers, and emits `language-changed`.",
+              "description": "Switch the current language. Accepts BCP-47 / cased tags\n(`'de-DE'`, `'DE'` → `de`); unresolvable languages are ignored. Reflects\nthe canonical code in the `lang` attribute, re-translates `[data-i18n]`\nelements, notifies observers, and emits `language-changed`.",
               "return": {
                 "type": {
                   "text": "(language: string) => void"
@@ -261,7 +261,7 @@
               "kind": "field",
               "name": "trackData",
               "privacy": "public",
-              "description": "Parsed track data, or null before any GPX has loaded.",
+              "description": "Parsed track data (a shallow copy), or null before any GPX has loaded.",
               "type": {
                 "text": "TrackData"
               }
@@ -270,7 +270,7 @@
               "kind": "field",
               "name": "sections",
               "privacy": "public",
-              "description": "The track sliced into named sections (empty before data loads).",
+              "description": "The track sliced into named sections (a shallow copy; empty before load).",
               "type": {
                 "text": "TrackSection[]"
               }
@@ -390,6 +390,12 @@
             },
             {
               "name": "section-hover",
+              "type": {
+                "text": "CustomEvent"
+              }
+            },
+            {
+              "name": "section-leave",
               "type": {
                 "text": "CustomEvent"
               }

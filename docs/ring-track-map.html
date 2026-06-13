@@ -94,8 +94,8 @@ code { background: var(--code-bg); padding: .1rem .35rem; border-radius: .25rem;
         <table aria-labelledby="properties-title">
             <thead><tr><th>Property</th><th>Type</th><th>Default</th><th>Description</th></tr></thead>
             <tbody>
-            <tr><td><code>trackData</code></td><td><code>TrackData</code></td><td></td><td>Parsed track data, or null before any GPX has loaded.</td></tr>
-            <tr><td><code>sections</code></td><td><code>TrackSection[]</code></td><td></td><td>The track sliced into named sections (empty before data loads).</td></tr>
+            <tr><td><code>trackData</code></td><td><code>TrackData</code></td><td></td><td>Parsed track data (a shallow copy), or null before any GPX has loaded.</td></tr>
+            <tr><td><code>sections</code></td><td><code>TrackSection[]</code></td><td></td><td>The track sliced into named sections (a shallow copy; empty before load).</td></tr>
             </tbody>
         </table>
         </section>
@@ -123,6 +123,7 @@ code { background: var(--code-bg); padding: .1rem .35rem; border-radius: .25rem;
             <tr><td><code>map-ready</code></td><td><code>CustomEvent</code></td><td></td></tr>
             <tr><td><code>section-click</code></td><td><code>CustomEvent</code></td><td></td></tr>
             <tr><td><code>section-hover</code></td><td><code>CustomEvent</code></td><td></td></tr>
+            <tr><td><code>section-leave</code></td><td><code>CustomEvent</code></td><td></td></tr>
             <tr><td><code>section-focus</code></td><td><code>CustomEvent</code></td><td></td></tr>
             <tr><td><code>view-reset</code></td><td><code>CustomEvent</code></td><td></td></tr>
             </tbody>

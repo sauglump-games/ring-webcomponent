@@ -1,7 +1,7 @@
 import { describe, it, before, after, beforeEach } from 'node:test';
 import assert from 'node:assert';
 import { setupDom, fireMouse, type DomEnv } from './dom.js';
-import { FIXTURE_GPX } from './fixture.js';
+import { FIXTURE_GPX, EMPTY_GPX } from './fixture.js';
 import type { RingElevationProfile, ProfileEventDetail } from '../src/components/ring-elevation-profile.js';
 
 // Import only after DOM globals are installed (customElements.define / extends HTMLElement).
@@ -44,7 +44,9 @@ describe('ring-elevation-profile', () => {
 
     it('shows a loading state before data arrives', () => {
         const el = make();
-        assert.ok(el.shadowRoot!.querySelector('.loading'));
+        const loading = el.shadowRoot!.querySelector('.loading')!;
+        assert.ok(loading);
+        assert.strictEqual(loading.hasAttribute('hidden'), false);
         assert.strictEqual(svgOf(el), null);
     });
 
@@ -52,7 +54,8 @@ describe('ring-elevation-profile', () => {
         const el = makeLoaded();
         const svg = svgOf(el);
         assert.ok(svg);
-        assert.strictEqual(el.shadowRoot!.querySelector('.loading'), null);
+        // The loading overlay is hidden once a profile renders.
+        assert.strictEqual(el.shadowRoot!.querySelector('.loading')!.hasAttribute('hidden'), true);
 
         const area = svg.querySelector('.elevation-area');
         const line = svg.querySelector('.elevation-line');
@@ -181,5 +184,55 @@ describe('ring-elevation-profile', () => {
         });
         fireMouse(svgOf(el), 'click', { clientX: GRAPH_MID_X, clientY: 100 });
         assert.strictEqual(clicked, false);
+    });
+});
+
+// --- regression tests for bugs.md fixes ---
+
+const tooltipVisible = (el: RingElevationProfile): boolean =>
+    el.shadowRoot!.querySelector('.tooltip')!.classList.contains('visible');
+
+describe('ring-elevation-profile robustness (bugs.md fixes)', () => {
+    it('recovers cleanly from a load error: no stale error, working tooltip (#2, #3)', () => {
+        const el = make();
+        el.loadFromString('<gpx><broken'); // error overlay shown
+        el.loadFromString(FIXTURE_GPX); // recover
+
+        assert.strictEqual(el.shadowRoot!.querySelector('.error')!.hasAttribute('hidden'), true);
+        assert.ok(svgOf(el), 'profile rendered after recovery');
+
+        fireMouse(svgOf(el), 'mousemove', { clientX: GRAPH_MID_X, clientY: 100 });
+        assert.ok(tooltipVisible(el), 'tooltip works again after recovery');
+    });
+
+    it('shows an empty state and flags profile-ready for empty GPX (#4)', () => {
+        const el = make();
+        const ready: { empty: boolean }[] = [];
+        el.addEventListener('profile-ready', (e) => ready.push((e as CustomEvent).detail));
+        el.loadFromString(EMPTY_GPX);
+
+        assert.strictEqual(svgOf(el), null);
+        assert.strictEqual(el.shadowRoot!.querySelector('.loading')!.hasAttribute('hidden'), true);
+        assert.strictEqual(el.shadowRoot!.querySelector('.empty')!.hasAttribute('hidden'), false);
+        assert.deepStrictEqual(ready.map((r) => r.empty), [true]);
+    });
+
+    it('ignores a pointer outside the plotted area on the Y axis (#5)', () => {
+        const el = makeLoaded();
+        let hovers = 0;
+        el.addEventListener('profile-hover', () => hovers++);
+        // x is inside the graph, y is far below it (over the axis labels / margin).
+        fireMouse(svgOf(el), 'mousemove', { clientX: GRAPH_MID_X, clientY: 99999 });
+        assert.strictEqual(hovers, 0);
+        assert.strictEqual(tooltipVisible(el), false);
+    });
+
+    it('hides a stale tooltip when units change (#8)', () => {
+        const el = makeLoaded();
+        fireMouse(svgOf(el), 'mousemove', { clientX: GRAPH_MID_X, clientY: 100 });
+        assert.ok(tooltipVisible(el));
+
+        el.units = 'imperial'; // re-render
+        assert.strictEqual(tooltipVisible(el), false);
     });
 });

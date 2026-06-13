@@ -1,7 +1,7 @@
 import { describe, it, before, after, beforeEach } from 'node:test';
 import assert from 'node:assert';
 import { setupDom, fireMouse, type DomEnv } from './dom.js';
-import { FIXTURE_GPX } from './fixture.js';
+import { FIXTURE_GPX, EMPTY_GPX } from './fixture.js';
 import type { RingTrackMap } from '../src/components/ring-track-map.js';
 
 // Import only after DOM globals are installed (customElements.define / extends HTMLElement).
@@ -174,5 +174,100 @@ describe('ring-track-map', () => {
         assert.strictEqual(el.getAttribute('highlight-sections'), null);
         assert.strictEqual(svgOf(el).querySelectorAll('.selected, .highlighted').length, 0);
         assert.ok(reset);
+    });
+});
+
+// --- regression tests for bugs.md fixes ---
+
+const QUOTE_GPX = `<gpx>
+  <wpt lat="50.341" lon="6.965"><ele>600</ele><name>Bad"Quote</name><cmt>Section Start: 0km, End: 3km</cmt></wpt>
+  <trk><trkseg>
+    <trkpt lat="50.340" lon="6.960"><ele>600</ele></trkpt>
+    <trkpt lat="50.340" lon="6.980"><ele>610</ele></trkpt>
+  </trkseg></trk>
+</gpx>`;
+
+describe('ring-track-map robustness (bugs.md fixes)', () => {
+    it('preserves zoom across a re-render and fires no view-reset (#9)', () => {
+        const el = makeLoaded();
+        el.focusSection('Flugplatz');
+        const zoomed = svgOf(el).getAttribute('viewBox');
+        assert.notStrictEqual(zoomed, '0 0 800 600');
+
+        let resetFired = false;
+        el.addEventListener('view-reset', () => (resetFired = true));
+        el.setAttribute('show-labels', ''); // triggers a full re-render
+        assert.strictEqual(svgOf(el).getAttribute('viewBox'), zoomed, 'zoom must survive re-render');
+        assert.strictEqual(resetFired, false);
+    });
+
+    it('rounds the focusSection viewBox to avoid float noise (#18)', () => {
+        const el = makeLoaded();
+        el.focusSection('Flugplatz');
+        const viewBox = svgOf(el).getAttribute('viewBox')!;
+        assert.ok(!/\d{6,}/.test(viewBox), `float noise in viewBox: ${viewBox}`);
+        for (const n of viewBox.split(' ')) {
+            assert.strictEqual(Number(n), Math.round(Number(n) * 100) / 100);
+        }
+    });
+
+    it('does not crash highlighting a section whose name contains a quote (#10)', () => {
+        const el = make();
+        el.loadFromString(QUOTE_GPX);
+        assert.doesNotThrow(() => el.setAttribute('highlight-sections', 'Bad"Quote'));
+        const path = svgOf(el).querySelector('[data-index="0"]')!;
+        assert.ok(path.classList.contains('highlighted'));
+    });
+
+    it('clears the selection when a new track is loaded (#11)', () => {
+        const el = makeLoaded();
+        fireMouse(svgOf(el).querySelector('[data-section="Hatzenbach"]')!, 'click');
+        assert.ok(svgOf(el).querySelector('.section-path.selected'));
+
+        el.loadFromString(FIXTURE_GPX); // reload: selection must not carry over
+        assert.strictEqual(svgOf(el).querySelector('.section-path.selected'), null);
+    });
+
+    it('renders an empty state (not a blank map) for an empty GPX and flags map-ready (#14)', () => {
+        const el = make();
+        const ready: { empty: boolean }[] = [];
+        el.addEventListener('map-ready', (e) => ready.push((e as CustomEvent).detail));
+        el.loadFromString(EMPTY_GPX);
+
+        assert.strictEqual(svgOf(el), null, 'no blank svg');
+        assert.strictEqual(el.shadowRoot!.querySelector('.empty')!.hasAttribute('hidden'), false);
+        assert.deepStrictEqual(ready.map((r) => r.empty), [true]);
+    });
+
+    it('treats show-labels="false" as off (#15)', () => {
+        const el = makeLoaded({ 'show-labels': 'false' });
+        assert.strictEqual(svgOf(el).querySelectorAll('.section-label').length, 0);
+    });
+
+    it('emits section-leave on mouseleave (#16)', () => {
+        const el = makeLoaded();
+        const left: string[] = [];
+        el.addEventListener('section-leave', (e) => left.push((e as CustomEvent).detail.section.name));
+        svgOf(el).querySelector('[data-section="Hatzenbach"]')!.dispatchEvent(new env.window.Event('mouseleave'));
+        assert.deepStrictEqual(left, ['Hatzenbach']);
+    });
+
+    it('returns a defensive copy from the sections getter (#17)', () => {
+        const el = makeLoaded();
+        const copy = el.sections;
+        copy.length = 0;
+        assert.strictEqual(el.sections.length, 2, 'internal sections must be untouched');
+    });
+
+    it('does not refetch and clobber loaded data when reconnected (#12)', async () => {
+        const el = make({ 'gpx-url': './does-not-exist.gpx' });
+        await new Promise((r) => setTimeout(r, 5)); // let the failing fetch settle
+        el.loadFromString(FIXTURE_GPX);
+        assert.ok(svgOf(el), 'rendered after loadFromString');
+
+        document.body.appendChild(el); // move in DOM = disconnect + reconnect
+        await new Promise((r) => setTimeout(r, 5));
+        assert.ok(svgOf(el), 'data survived reconnection');
+        assert.strictEqual(el.shadowRoot!.querySelector('.error')!.hasAttribute('hidden'), true);
     });
 });

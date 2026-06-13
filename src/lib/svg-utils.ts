@@ -4,7 +4,7 @@
  */
 
 import { calculateBounds } from './math-utils.js';
-import type { TrackPoint, SectionWaypoint } from './gpx-parser.js';
+import { sectionCovers, type TrackPoint, type SectionWaypoint } from './gpx-parser.js';
 
 /** A projected SVG coordinate carrying its source track point. */
 export interface SVGCoordinate {
@@ -39,7 +39,13 @@ export function gpsToSVG(
     const lonRange = bounds.maxLon - bounds.minLon;
     const latRange = bounds.maxLat - bounds.minLat;
 
-    const scale = Math.min(width / lonRange, height / latRange);
+    // A zero range on an axis (single point, or a perfectly straight N–S / E–W
+    // line) must not divide; it simply doesn't constrain the scale. If both are
+    // zero (all points identical) everything collapses to the viewport centre
+    // instead of producing NaN coordinates.
+    const scaleX = lonRange > 0 ? width / lonRange : Infinity;
+    const scaleY = latRange > 0 ? height / latRange : Infinity;
+    const scale = Number.isFinite(Math.min(scaleX, scaleY)) ? Math.min(scaleX, scaleY) : 0;
 
     const centerOffsetX = (width - lonRange * scale) / 2;
     const centerOffsetY = (height - latRange * scale) / 2;
@@ -80,26 +86,53 @@ export function generatePath(coordinates: readonly { x: number; y: number }[], s
 }
 
 /**
+ * Like {@link generatePath} but starts a fresh subpath at every `<trkseg>`
+ * boundary (a change in `original.segment`), so a paused/resumed recording is
+ * drawn as separate strokes instead of one line jumping across the gap.
+ */
+export function generateTrackPath(coordinates: readonly SVGCoordinate[], smooth = true): string {
+    if (coordinates.length === 0) return '';
+
+    const runs: SVGCoordinate[][] = [];
+    let current: SVGCoordinate[] = [];
+    let segment = coordinates[0].original.segment;
+    for (const coord of coordinates) {
+        if (coord.original.segment !== segment) {
+            runs.push(current);
+            current = [];
+            segment = coord.original.segment;
+        }
+        current.push(coord);
+    }
+    runs.push(current);
+
+    return runs.map((run) => generatePath(run, smooth)).join(' ');
+}
+
+/**
  * Slice the track into sections: each waypoint's `startKm`–`endKm` range
- * selects the track points (and their projected coordinates) it covers.
+ * (half-open, finish line inclusive) selects the track points and their
+ * projected coordinates. Section strokes break across `<trkseg>` boundaries.
  */
 export function createSections(
     waypoints: readonly SectionWaypoint[],
     svgCoordinates: readonly SVGCoordinate[],
     trackPoints: readonly TrackPoint[]
 ): TrackSection[] {
+    const maxEndKm = waypoints.reduce((max, wp) => Math.max(max, wp.endKm), -Infinity);
+
     return waypoints.map((waypoint) => {
         const points: TrackPoint[] = [];
         const coordinates: SVGCoordinate[] = [];
 
         trackPoints.forEach((point, idx) => {
-            if (point.distance >= waypoint.startKm && point.distance <= waypoint.endKm) {
+            if (sectionCovers(waypoint, point.distance, maxEndKm)) {
                 points.push(point);
                 coordinates.push(svgCoordinates[idx]);
             }
         });
 
-        return { ...waypoint, points, coordinates, path: generatePath(coordinates, true) };
+        return { ...waypoint, points, coordinates, path: generateTrackPath(coordinates, true) };
     });
 }
 

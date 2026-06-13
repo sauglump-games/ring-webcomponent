@@ -8,6 +8,7 @@
  * @fires map-ready - Track data is parsed and the SVG is rendered
  * @fires section-click - A section segment was clicked
  * @fires section-hover - The pointer entered a section segment
+ * @fires section-leave - The pointer left a section segment
  * @fires section-focus - The view zoomed to a section via focusSection()
  * @fires view-reset - The view returned to the full track via resetView()
  *
@@ -21,10 +22,10 @@
  */
 
 import { GPXParser, type TrackData } from '../lib/gpx-parser.js';
-import { gpsToSVG, generatePath, createSections, createSVGElement, type SVGCoordinate, type TrackSection } from '../lib/svg-utils.js';
-import { defineOnce, emit, boolAttr } from './util.js';
+import { gpsToSVG, generateTrackPath, createSections, createSVGElement, type SVGCoordinate, type TrackSection } from '../lib/svg-utils.js';
+import { defineOnce, emit } from './util.js';
 
-/** Section payload carried by section-click / section-hover events. */
+/** Section payload carried by section-click / section-hover / section-leave events. */
 export interface SectionEventDetail {
     section: {
         name: string;
@@ -39,6 +40,9 @@ export interface SectionEventDetail {
 const VIEW_WIDTH = 800;
 const VIEW_HEIGHT = 600;
 const DEFAULT_VIEWBOX = `0 0 ${VIEW_WIDTH} ${VIEW_HEIGHT}`;
+
+/** Round to 2 decimals so computed viewBoxes don't leak float noise (#18). */
+const round2 = (n: number): number => Math.round(n * 100) / 100;
 
 const TEMPLATE = `
 <style>
@@ -93,18 +97,22 @@ const TEMPLATE = `
     stroke-width: 0.5;
     opacity: 0.95;
   }
-  .loading, .error {
+  .state {
+    position: absolute;
+    inset: 0;
     display: flex;
     align-items: center;
     justify-content: center;
-    height: 100%;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     color: var(--text-color, #2c3e50);
   }
-  .error { color: #e74c3c; }
+  .state.error { color: #e74c3c; }
+  [hidden] { display: none !important; }
 </style>
 <div class="container">
-  <div class="loading">Loading track data…</div>
+  <div class="state loading">Loading track data…</div>
+  <div class="state empty" hidden>No track data</div>
+  <div class="state error" hidden></div>
 </div>
 `;
 
@@ -118,22 +126,32 @@ export class RingTrackMap extends HTMLElement {
     private data: TrackData | null = null;
     private svgCoordinates: SVGCoordinate[] = [];
     private trackSections: TrackSection[] = [];
-    private selectedSection: TrackSection | null = null;
+    /** Index into {@link trackSections}; identity survives re-render, not reload. */
+    private selectedIndex: number | null = null;
     private readonly sectionColors = new Map<string, string>();
+    /** Current viewBox, preserved across re-renders; null means the full track. */
+    private currentViewBox: string | null = null;
+    /** Monotonic id so a slow fetch can't overwrite a newer one (#13). */
+    private loadToken = 0;
 
     constructor() {
         super();
         this.root = this.attachShadow({ mode: 'open' });
     }
 
-    /** Parsed track data, or null before any GPX has loaded. */
+    /** Parsed track data (a shallow copy), or null before any GPX has loaded. */
     get trackData(): TrackData | null {
-        return this.data;
+        if (!this.data) return null;
+        return {
+            trackPoints: this.data.trackPoints.slice(),
+            waypoints: this.data.waypoints.slice(),
+            totalDistance: this.data.totalDistance,
+        };
     }
 
-    /** The track sliced into named sections (empty before data loads). */
+    /** The track sliced into named sections (a shallow copy; empty before load). */
     get sections(): TrackSection[] {
-        return this.trackSections;
+        return this.trackSections.slice();
     }
 
     connectedCallback(): void {
@@ -141,7 +159,9 @@ export class RingTrackMap extends HTMLElement {
             this.root.innerHTML = TEMPLATE;
             this.rendered = true;
         }
-        if (this.getAttribute('gpx-url')) {
+        // Only fetch on (re)connect when nothing has been loaded yet, so moving
+        // the element in the DOM doesn't refetch and clobber loaded data (#12).
+        if (!this.data && this.getAttribute('gpx-url')) {
             void this.loadFromUrl();
         }
     }
@@ -150,6 +170,8 @@ export class RingTrackMap extends HTMLElement {
         if (oldValue === newValue || !this.rendered) return;
         if (name === 'gpx-url') {
             void this.loadFromUrl();
+        } else if (name === 'highlight-sections') {
+            this.applyHighlights();
         } else if (this.data) {
             this.renderTrack();
         }
@@ -159,27 +181,41 @@ export class RingTrackMap extends HTMLElement {
     private async loadFromUrl(): Promise<void> {
         const gpxUrl = this.getAttribute('gpx-url');
         if (!gpxUrl) return;
+        const token = ++this.loadToken;
         try {
             const response = await fetch(gpxUrl);
             if (!response.ok) {
                 throw new Error(`Failed to load GPX file: ${response.statusText}`);
             }
-            this.loadFromString(await response.text());
+            const text = await response.text();
+            if (token !== this.loadToken) return; // superseded by a newer load
+            this.loadFromString(text);
         } catch (error) {
+            if (token !== this.loadToken) return;
             this.showError(error instanceof Error ? error.message : String(error));
         }
     }
 
     /** Parse a GPX string and render the track. Useful for tests and inlined data. */
     loadFromString(gpxText: string): void {
+        this.loadToken++; // supersede any in-flight fetch
+        let data: TrackData;
         try {
-            this.data = GPXParser.parse(gpxText);
+            data = GPXParser.parse(gpxText);
         } catch (error) {
             this.showError(error instanceof Error ? error.message : String(error));
             return;
         }
+        // New track: drop selection/zoom that belonged to the old one (#11, #9).
+        this.data = data;
+        this.selectedIndex = null;
+        this.currentViewBox = null;
         this.renderTrack();
-        emit(this, 'map-ready', { trackData: this.data, sections: this.trackSections });
+        emit(this, 'map-ready', {
+            trackData: this.trackData,
+            sections: this.sections,
+            empty: data.trackPoints.length === 0,
+        });
     }
 
     private renderTrack(): void {
@@ -188,9 +224,18 @@ export class RingTrackMap extends HTMLElement {
         const container = this.root.querySelector('.container');
         if (!container) return;
 
+        if (this.data.trackPoints.length === 0) {
+            container.querySelector('svg')?.remove();
+            this.trackSections = [];
+            this.svgCoordinates = [];
+            this.setState('empty');
+            return;
+        }
+
         const doc = this.ownerDocument;
         const svg = createSVGElement(doc, 'svg', {
-            viewBox: DEFAULT_VIEWBOX,
+            // Preserve any active zoom across re-renders (e.g. toggling labels) (#9).
+            viewBox: this.currentViewBox ?? DEFAULT_VIEWBOX,
             preserveAspectRatio: 'xMidYMid meet',
         });
 
@@ -199,7 +244,7 @@ export class RingTrackMap extends HTMLElement {
 
         const mainPath = createSVGElement(doc, 'path', {
             class: 'track-path',
-            d: generatePath(this.svgCoordinates, true),
+            d: generateTrackPath(this.svgCoordinates, true),
         });
         svg.appendChild(mainPath);
 
@@ -211,19 +256,26 @@ export class RingTrackMap extends HTMLElement {
                 'data-section': section.name,
                 'data-index': index,
             });
-            sectionPath.addEventListener('click', () => this.handleSectionClick(section));
-            sectionPath.addEventListener('mouseenter', () => this.handleSectionHover(section));
+            sectionPath.addEventListener('click', () => this.handleSectionClick(index));
+            sectionPath.addEventListener('mouseenter', () => this.handleSectionHover(index));
+            sectionPath.addEventListener('mouseleave', () => this.handleSectionLeave(index));
             svg.appendChild(sectionPath);
         });
 
-        if (boolAttr(this, 'show-labels')) {
+        if (this.labelsEnabled()) {
             this.addLabels(svg);
         }
 
-        container.innerHTML = '';
+        this.setState('none');
+        container.querySelector('svg')?.remove();
         container.appendChild(svg);
 
         this.applyHighlights();
+    }
+
+    /** Boolean attribute with the literal string `"false"` treated as off (#15). */
+    private labelsEnabled(): boolean {
+        return this.hasAttribute('show-labels') && this.getAttribute('show-labels') !== 'false';
     }
 
     private addLabels(svg: SVGSVGElement): void {
@@ -275,14 +327,39 @@ export class RingTrackMap extends HTMLElement {
         };
     }
 
-    private handleSectionClick(section: TrackSection): void {
-        this.selectedSection = section;
+    private handleSectionClick(index: number): void {
+        this.selectedIndex = index;
         this.applyHighlights();
-        emit(this, 'section-click', this.sectionDetail(section));
+        emit(this, 'section-click', this.sectionDetail(this.trackSections[index]));
     }
 
-    private handleSectionHover(section: TrackSection): void {
-        emit(this, 'section-hover', this.sectionDetail(section));
+    private handleSectionHover(index: number): void {
+        emit(this, 'section-hover', this.sectionDetail(this.trackSections[index]));
+    }
+
+    private handleSectionLeave(index: number): void {
+        emit(this, 'section-leave', this.sectionDetail(this.trackSections[index]));
+    }
+
+    /**
+     * Resolve the `highlight-sections` attribute (comma-separated names) to
+     * section indices. Matching by index avoids interpolating untrusted names
+     * into a CSS selector (#10).
+     */
+    private highlightedIndices(): number[] {
+        const attr = this.getAttribute('highlight-sections');
+        if (!attr) return [];
+        const indices: number[] = [];
+        for (const name of attr.split(',').map((s) => s.trim())) {
+            if (!name) continue;
+            const idx = this.trackSections.findIndex((s) => s.name === name);
+            if (idx !== -1) indices.push(idx);
+        }
+        return indices;
+    }
+
+    private pathAt(svg: SVGSVGElement, index: number): SVGPathElement | null {
+        return svg.querySelector<SVGPathElement>(`.section-path[data-index="${index}"]`);
     }
 
     private applyHighlights(): void {
@@ -295,25 +372,22 @@ export class RingTrackMap extends HTMLElement {
             path.style.strokeOpacity = '';
         }
 
-        const highlightAttr = this.getAttribute('highlight-sections');
-        if (highlightAttr) {
-            for (const name of highlightAttr.split(',').map((s) => s.trim())) {
-                const path = svg.querySelector<SVGPathElement>(`[data-section="${name}"]`);
-                if (!path) continue;
-                path.classList.add('highlighted');
-                const color = this.sectionColors.get(name);
-                if (color) {
-                    path.style.stroke = color;
-                    path.style.strokeOpacity = '0.7';
-                }
+        for (const index of this.highlightedIndices()) {
+            const path = this.pathAt(svg, index);
+            if (!path) continue;
+            path.classList.add('highlighted');
+            const color = this.sectionColors.get(this.trackSections[index].name);
+            if (color) {
+                path.style.stroke = color;
+                path.style.strokeOpacity = '0.7';
             }
         }
 
-        if (this.selectedSection) {
-            const path = svg.querySelector<SVGPathElement>(`[data-section="${this.selectedSection.name}"]`);
+        if (this.selectedIndex !== null) {
+            const path = this.pathAt(svg, this.selectedIndex);
             if (path) {
                 path.classList.add('selected');
-                const color = this.sectionColors.get(this.selectedSection.name);
+                const color = this.sectionColors.get(this.trackSections[this.selectedIndex].name);
                 if (color) {
                     path.style.stroke = color;
                     path.style.strokeOpacity = '0.9';
@@ -324,9 +398,9 @@ export class RingTrackMap extends HTMLElement {
 
     /** Select and highlight a single section by name. */
     highlightSection(sectionName: string): void {
-        const section = this.trackSections.find((s) => s.name === sectionName);
-        if (section) {
-            this.selectedSection = section;
+        const index = this.trackSections.findIndex((s) => s.name === sectionName);
+        if (index !== -1) {
+            this.selectedIndex = index;
             this.applyHighlights();
         }
     }
@@ -381,7 +455,8 @@ export class RingTrackMap extends HTMLElement {
         maxX += padding;
         maxY += padding;
 
-        const viewBox = `${minX} ${minY} ${maxX - minX} ${maxY - minY}`;
+        const viewBox = `${round2(minX)} ${round2(minY)} ${round2(maxX - minX)} ${round2(maxY - minY)}`;
+        this.currentViewBox = viewBox;
         svg.style.transition = 'all 0.5s ease-in-out';
         svg.setAttribute('viewBox', viewBox);
 
@@ -394,22 +469,32 @@ export class RingTrackMap extends HTMLElement {
         const svg = this.root.querySelector('svg');
         if (!svg) return;
 
+        this.currentViewBox = null;
         svg.style.transition = 'all 0.5s ease-in-out';
         svg.setAttribute('viewBox', DEFAULT_VIEWBOX);
 
-        this.selectedSection = null;
+        this.selectedIndex = null;
         this.removeAttribute('highlight-sections');
         this.applyHighlights();
 
         emit(this, 'view-reset', {});
     }
 
+    /** Toggle the loading / empty / error overlays; `'none'` hides them all. */
+    private setState(which: 'loading' | 'empty' | 'error' | 'none', message?: string): void {
+        for (const name of ['loading', 'empty', 'error'] as const) {
+            const el = this.root.querySelector(`.state.${name}`);
+            if (el) el.toggleAttribute('hidden', name !== which);
+        }
+        if (which === 'error' && message !== undefined) {
+            const el = this.root.querySelector('.state.error');
+            if (el) el.textContent = `Error: ${message}`;
+        }
+    }
+
     private showError(message: string): void {
-        const container = this.root.querySelector('.container');
-        if (!container) return;
-        container.innerHTML = '<div class="error"></div>';
-        const error = container.querySelector('.error');
-        if (error) error.textContent = `Error: ${message}`;
+        this.root.querySelector('.container svg')?.remove();
+        this.setState('error', message);
     }
 }
 

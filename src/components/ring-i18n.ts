@@ -40,15 +40,20 @@ export class RingI18n extends HTMLElement {
         // Hidden service element — it never renders anything.
         this.style.display = 'none';
 
-        const initial =
-            this.getAttribute('lang') ??
-            (typeof navigator !== 'undefined' ? navigator.language.split('-')[0] : FALLBACK_LANGUAGE);
-        this.setLanguage(this.translations.has(initial) ? initial : FALLBACK_LANGUAGE);
+        const requested =
+            this.getAttribute('lang') ?? (typeof navigator !== 'undefined' ? navigator.language : FALLBACK_LANGUAGE);
+        this.setLanguage(this.resolve(requested) ?? FALLBACK_LANGUAGE);
         this.applyTranslations();
     }
 
     attributeChangedCallback(_name: string, oldValue: string | null, newValue: string | null): void {
-        if (oldValue === newValue || newValue === null) return;
+        if (oldValue === newValue) return;
+        // Removing `lang` would otherwise leave currentLanguage with no reflected
+        // attribute, breaking the "reflected" contract — snap it back (#27).
+        if (newValue === null) {
+            this.reflect();
+            return;
+        }
         this.setLanguage(newValue);
     }
 
@@ -63,29 +68,55 @@ export class RingI18n extends HTMLElement {
     }
 
     /**
-     * Switch the current language. Unknown languages are ignored. Reflects
-     * the `lang` attribute, re-translates `[data-i18n]` elements, notifies
-     * observers, and emits `language-changed`.
+     * Switch the current language. Accepts BCP-47 / cased tags
+     * (`'de-DE'`, `'DE'` → `de`); unresolvable languages are ignored. Reflects
+     * the canonical code in the `lang` attribute, re-translates `[data-i18n]`
+     * elements, notifies observers, and emits `language-changed`.
      */
     setLanguage(language: string): void {
-        if (language === this.currentLanguage || !this.translations.has(language)) {
-            // Keep the attribute honest when an unknown language was set on it.
-            if (this.getAttribute('lang') !== this.currentLanguage) {
-                this.setAttribute('lang', this.currentLanguage);
-            }
+        const resolved = this.resolve(language);
+        if (resolved === null || resolved === this.currentLanguage) {
+            // Unknown, or already current: just keep the attribute canonical.
+            this.reflect();
             return;
         }
 
-        this.currentLanguage = language;
-        if (this.getAttribute('lang') !== language) {
-            this.setAttribute('lang', language);
-        }
-
+        this.currentLanguage = resolved;
+        this.reflect();
         this.applyTranslations();
-        for (const observer of this.observers) {
-            observer(language);
+        this.notify(resolved);
+        emit(this, 'language-changed', { language: resolved });
+    }
+
+    /**
+     * Resolve a requested language tag to a registered bundle key: exact
+     * (case-insensitive) match first, then the base subtag (`de-DE` → `de`).
+     * Returns null when nothing matches.
+     */
+    private resolve(language: string): string | null {
+        const lower = language.trim().toLowerCase();
+        if (this.translations.has(lower)) return lower;
+        const base = lower.split('-')[0];
+        if (this.translations.has(base)) return base;
+        return null;
+    }
+
+    /** Ensure the `lang` attribute mirrors the canonical current language. */
+    private reflect(): void {
+        if (this.getAttribute('lang') !== this.currentLanguage) {
+            this.setAttribute('lang', this.currentLanguage);
         }
-        emit(this, 'language-changed', { language });
+    }
+
+    /** Notify observers, isolating a throwing one so it can't abort the rest (#25). */
+    private notify(language: string): void {
+        for (const observer of this.observers) {
+            try {
+                observer(language);
+            } catch {
+                /* a faulty observer must not break language switching */
+            }
+        }
     }
 
     /**
@@ -112,8 +143,10 @@ export class RingI18n extends HTMLElement {
      * language are kept unless overridden.
      */
     addTranslations(language: string, bundle: Partial<TranslationBundle>): void {
-        const existing = this.translations.get(language) ?? { sections: {}, ui: {} };
-        this.translations.set(language, {
+        // Store under a normalized (lowercase) key so resolve() can match it.
+        const key = language.trim().toLowerCase();
+        const existing = this.translations.get(key) ?? { sections: {}, ui: {} };
+        this.translations.set(key, {
             sections: { ...existing.sections, ...bundle.sections },
             ui: { ...existing.ui, ...bundle.ui },
         });
@@ -136,7 +169,11 @@ export class RingI18n extends HTMLElement {
     applyTranslations(root: ParentNode = this.ownerDocument): void {
         for (const el of root.querySelectorAll<HTMLElement>('[data-i18n]')) {
             const key = el.getAttribute('data-i18n');
-            if (key) el.textContent = this.t(key);
+            if (!key) continue;
+            // Only overwrite when the key actually resolves, so an unknown key
+            // doesn't destroy an element's authored fallback text (#28).
+            const value = this.lookup(key, this.currentLanguage) ?? this.lookup(key, FALLBACK_LANGUAGE);
+            if (value !== null) el.textContent = value;
         }
     }
 
