@@ -21,7 +21,8 @@
               "description": "Parsed track data (a shallow copy), or null before any GPX has loaded.",
               "type": {
                 "text": "TrackData"
-              }
+              },
+              "readonly": true
             },
             {
               "kind": "field",
@@ -37,11 +38,14 @@
               "name": "loadFromString",
               "privacy": "public",
               "description": "Parse a GPX string and render the profile. Useful for tests and inlined data.",
-              "return": {
-                "type": {
-                  "text": "(gpxText: string) => void"
+              "parameters": [
+                {
+                  "name": "gpxText",
+                  "type": {
+                    "text": "string"
+                  }
                 }
-              }
+              ]
             }
           ],
           "attributes": [
@@ -71,12 +75,18 @@
               "name": "profile-hover",
               "type": {
                 "text": "CustomEvent"
+              },
+              "detailType": {
+                "text": "ProfileEventDetail"
               }
             },
             {
               "name": "profile-click",
               "type": {
                 "text": "CustomEvent"
+              },
+              "detailType": {
+                "text": "ProfileEventDetail"
               }
             }
           ]
@@ -119,7 +129,7 @@
               "description": "The current language code.",
               "return": {
                 "type": {
-                  "text": "() => string"
+                  "text": "string"
                 }
               }
             },
@@ -130,7 +140,7 @@
               "description": "Language codes with a registered bundle.",
               "return": {
                 "type": {
-                  "text": "() => string[]"
+                  "text": "string[]"
                 }
               }
             },
@@ -139,20 +149,39 @@
               "name": "setLanguage",
               "privacy": "public",
               "description": "Switch the current language. Accepts BCP-47 / cased tags\n(`'de-DE'`, `'DE'` → `de`); unresolvable languages are ignored. Reflects\nthe canonical code in the `lang` attribute, re-translates `[data-i18n]`\nelements, notifies observers, and emits `language-changed`.",
-              "return": {
-                "type": {
-                  "text": "(language: string) => void"
+              "parameters": [
+                {
+                  "name": "language",
+                  "type": {
+                    "text": "string"
+                  }
                 }
-              }
+              ]
             },
             {
               "kind": "method",
               "name": "t",
               "privacy": "public",
               "description": "Translate a dot-separated key (e.g. `'sections.Fuchsröhre'` or\n`'ui.totalDistance'`) with `{param}` substitution. Falls back to\nEnglish, then to the key itself. (Named `t` because `translate` is an\ninherited HTMLElement boolean property.)",
+              "parameters": [
+                {
+                  "name": "key",
+                  "type": {
+                    "text": "string"
+                  }
+                },
+                {
+                  "name": "params",
+                  "type": {
+                    "text": "Record<string, string | number>"
+                  },
+                  "optional": true,
+                  "default": "{}"
+                }
+              ],
               "return": {
                 "type": {
-                  "text": "(key: string, params?: Record<string, string | number>) => string"
+                  "text": "string"
                 }
               }
             },
@@ -161,9 +190,25 @@
               "name": "translateKey",
               "privacy": "public",
               "description": "Alias for {@link t}.",
+              "parameters": [
+                {
+                  "name": "key",
+                  "type": {
+                    "text": "string"
+                  }
+                },
+                {
+                  "name": "params",
+                  "type": {
+                    "text": "Record<string, string | number>"
+                  },
+                  "optional": true,
+                  "default": "{}"
+                }
+              ],
               "return": {
                 "type": {
-                  "text": "(key: string, params?: Record<string, string | number>) => string"
+                  "text": "string"
                 }
               }
             },
@@ -172,44 +217,64 @@
               "name": "addTranslations",
               "privacy": "public",
               "description": "Register (or extend) the bundle for a language. Existing keys for the\nlanguage are kept unless overridden.",
-              "return": {
-                "type": {
-                  "text": "(language: string, bundle: Partial<TranslationBundle>) => void"
+              "parameters": [
+                {
+                  "name": "language",
+                  "type": {
+                    "text": "string"
+                  }
+                },
+                {
+                  "name": "bundle",
+                  "type": {
+                    "text": "Partial<TranslationBundle>"
+                  }
                 }
-              }
+              ]
             },
             {
               "kind": "method",
               "name": "registerObserver",
               "privacy": "public",
               "description": "Register an observer called with the language code on every change.",
-              "return": {
-                "type": {
-                  "text": "(callback: LanguageObserver) => void"
+              "parameters": [
+                {
+                  "name": "callback",
+                  "type": {
+                    "text": "LanguageObserver"
+                  }
                 }
-              }
+              ]
             },
             {
               "kind": "method",
               "name": "unregisterObserver",
               "privacy": "public",
               "description": "Remove a previously registered observer.",
-              "return": {
-                "type": {
-                  "text": "(callback: LanguageObserver) => void"
+              "parameters": [
+                {
+                  "name": "callback",
+                  "type": {
+                    "text": "LanguageObserver"
+                  }
                 }
-              }
+              ]
             },
             {
               "kind": "method",
               "name": "applyTranslations",
               "privacy": "public",
               "description": "Translate every element with a `data-i18n=\"<key>\"` attribute under\n`root` (the whole document by default) by setting its text content.",
-              "return": {
-                "type": {
-                  "text": "(root?: ParentNode) => void"
+              "parameters": [
+                {
+                  "name": "root",
+                  "type": {
+                    "text": "ParentNode"
+                  },
+                  "optional": true,
+                  "default": "this.ownerDocument"
                 }
-              }
+              ]
             }
           ],
           "attributes": [
@@ -264,7 +329,8 @@
               "description": "Parsed track data (a shallow copy), or null before any GPX has loaded.",
               "type": {
                 "text": "TrackData"
-              }
+              },
+              "readonly": true
             },
             {
               "kind": "field",
@@ -273,95 +339,118 @@
               "description": "The track sliced into named sections (a shallow copy; empty before load).",
               "type": {
                 "text": "TrackSection[]"
-              }
+              },
+              "readonly": true
             },
             {
               "kind": "method",
               "name": "loadFromString",
               "privacy": "public",
               "description": "Parse a GPX string and render the track. Useful for tests and inlined data.",
-              "return": {
-                "type": {
-                  "text": "(gpxText: string) => void"
+              "parameters": [
+                {
+                  "name": "gpxText",
+                  "type": {
+                    "text": "string"
+                  }
                 }
-              }
+              ]
             },
             {
               "kind": "method",
               "name": "highlightSection",
               "privacy": "public",
               "description": "Select and highlight a single section by name.",
-              "return": {
-                "type": {
-                  "text": "(sectionName: string) => void"
+              "parameters": [
+                {
+                  "name": "sectionName",
+                  "type": {
+                    "text": "string"
+                  }
                 }
-              }
+              ]
             },
             {
               "kind": "method",
               "name": "highlightSections",
               "privacy": "public",
               "description": "Highlight a set of sections (reflected in the `highlight-sections` attribute).",
-              "return": {
-                "type": {
-                  "text": "(sectionNames: string | string[]) => void"
+              "parameters": [
+                {
+                  "name": "sectionNames",
+                  "type": {
+                    "text": "string[] | string"
+                  }
                 }
-              }
+              ]
             },
             {
               "kind": "method",
               "name": "setSectionColor",
               "privacy": "public",
               "description": "Assign a custom highlight color to a section.",
-              "return": {
-                "type": {
-                  "text": "(sectionName: string, color: string) => void"
+              "parameters": [
+                {
+                  "name": "sectionName",
+                  "type": {
+                    "text": "string"
+                  }
+                },
+                {
+                  "name": "color",
+                  "type": {
+                    "text": "string"
+                  }
                 }
-              }
+              ]
             },
             {
               "kind": "method",
               "name": "setSectionColors",
               "privacy": "public",
               "description": "Assign custom highlight colors for several sections at once.",
-              "return": {
-                "type": {
-                  "text": "(colorMap: Record<string, string>) => void"
+              "parameters": [
+                {
+                  "name": "colorMap",
+                  "type": {
+                    "text": "Record<string, string>"
+                  }
                 }
-              }
+              ]
             },
             {
               "kind": "method",
               "name": "clearSectionColors",
               "privacy": "public",
-              "description": "Remove all custom section colors.",
-              "return": {
-                "type": {
-                  "text": "() => void"
-                }
-              }
+              "description": "Remove all custom section colors."
             },
             {
               "kind": "method",
               "name": "focusSection",
               "privacy": "public",
               "description": "Zoom the viewBox to a section's bounding box and select it.",
-              "return": {
-                "type": {
-                  "text": "(sectionName: string, padding?: number) => void"
+              "parameters": [
+                {
+                  "name": "sectionName",
+                  "type": {
+                    "text": "string"
+                  }
+                },
+                {
+                  "name": "padding",
+                  "type": {
+                    "text": "number"
+                  },
+                  "optional": true,
+                  "default": "50"
                 }
-              }
+              ]
             },
             {
               "kind": "method",
               "name": "resetView",
               "privacy": "public",
-              "description": "Reset zoom, selection, and highlights to the initial full-track view.",
-              "return": {
-                "type": {
-                  "text": "() => void"
-                }
-              }
+              "description": "Reset zoom, selection, and highlights to the initial full-track view."
             }
           ],
           "attributes": [
