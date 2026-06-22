@@ -343,6 +343,24 @@
               "readonly": true
             },
             {
+              "kind": "field",
+              "name": "focusedSection",
+              "privacy": "public",
+              "description": "The section the view is zoomed to, reflected to the `focus-section`\nattribute. Assign a section name to zoom in, or `null` to zoom back out\nto the full track.",
+              "type": {
+                "text": "string"
+              }
+            },
+            {
+              "kind": "field",
+              "name": "labelSections",
+              "privacy": "public",
+              "description": "The section names whose labels are shown, reflected to the\n`label-sections` attribute. When `null` (the default), every section is\nlabelled; assign an array to restrict labels to just those sections.\nHas no effect unless labels are enabled via `show-labels`.",
+              "type": {
+                "text": "string[]"
+              }
+            },
+            {
               "kind": "method",
               "name": "loadFromString",
               "privacy": "public",
@@ -355,6 +373,46 @@
                   }
                 }
               ]
+            },
+            {
+              "kind": "method",
+              "name": "setSectionLabel",
+              "privacy": "public",
+              "description": "Override the label text for a section, or pass `''` to hide it. Only takes\neffect while labels are enabled (`show-labels`).",
+              "parameters": [
+                {
+                  "name": "sectionName",
+                  "type": {
+                    "text": "string"
+                  }
+                },
+                {
+                  "name": "label",
+                  "type": {
+                    "text": "string"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "method",
+              "name": "setSectionLabels",
+              "privacy": "public",
+              "description": "Override (or hide, with `''`) the labels of several sections at once.",
+              "parameters": [
+                {
+                  "name": "labelMap",
+                  "type": {
+                    "text": "Record<string, string>"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "method",
+              "name": "clearSectionLabels",
+              "privacy": "public",
+              "description": "Remove all label overrides, restoring each section's own name."
             },
             {
               "kind": "method",
@@ -462,6 +520,15 @@
             },
             {
               "name": "show-labels"
+            },
+            {
+              "name": "label-sections"
+            },
+            {
+              "name": "focus-section"
+            },
+            {
+              "name": "focus-padding"
             }
           ],
           "events": [

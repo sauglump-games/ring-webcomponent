@@ -144,6 +144,56 @@ describe('ring-track-map', () => {
         );
     });
 
+    it('label-sections restricts labels to the listed sections', () => {
+        const el = makeLoaded({ 'show-labels': '', 'label-sections': 'Flugplatz' });
+        const labels = Array.from(svgOf(el).querySelectorAll('.section-label'));
+        assert.deepStrictEqual(labels.map((l) => l.textContent), ['Flugplatz']);
+    });
+
+    it('labelSections property reflects to the attribute and filters labels', () => {
+        const el = makeLoaded({ 'show-labels': '' });
+        assert.strictEqual(el.labelSections, null);
+
+        el.labelSections = ['Hatzenbach'];
+        assert.strictEqual(el.getAttribute('label-sections'), 'Hatzenbach');
+        assert.deepStrictEqual(
+            Array.from(svgOf(el).querySelectorAll('.section-label')).map((l) => l.textContent),
+            ['Hatzenbach']
+        );
+
+        el.labelSections = null;
+        assert.strictEqual(svgOf(el).querySelectorAll('.section-label').length, 2);
+    });
+
+    it('setSectionLabel overrides the displayed label text', () => {
+        const el = makeLoaded({ 'show-labels': '' });
+        el.setSectionLabel('Flugplatz', 'Airfield');
+        const labels = Array.from(svgOf(el).querySelectorAll('.section-label')).map((l) => l.textContent);
+        assert.ok(labels.includes('Airfield'));
+        assert.ok(!labels.includes('Flugplatz'));
+    });
+
+    it('setSectionLabel with an empty string hides a single label', () => {
+        const el = makeLoaded({ 'show-labels': '' });
+        el.setSectionLabel('Flugplatz', '');
+        assert.deepStrictEqual(
+            Array.from(svgOf(el).querySelectorAll('.section-label')).map((l) => l.textContent),
+            ['Hatzenbach']
+        );
+        el.clearSectionLabels();
+        assert.strictEqual(svgOf(el).querySelectorAll('.section-label').length, 2);
+    });
+
+    it('label overrides survive a re-render and do nothing without show-labels', () => {
+        const el = makeLoaded();
+        el.setSectionLabel('Flugplatz', 'Airfield');
+        assert.strictEqual(svgOf(el).querySelectorAll('.section-label').length, 0, 'no labels without show-labels');
+
+        el.setAttribute('show-labels', ''); // full re-render
+        const labels = Array.from(svgOf(el).querySelectorAll('.section-label')).map((l) => l.textContent);
+        assert.ok(labels.includes('Airfield'), 'override persists across re-render');
+    });
+
     it('focusSection zooms the viewBox and emits section-focus', () => {
         const el = makeLoaded();
         const focused: { viewBox: string }[] = [];
@@ -174,6 +224,52 @@ describe('ring-track-map', () => {
         assert.strictEqual(el.getAttribute('highlight-sections'), null);
         assert.strictEqual(svgOf(el).querySelectorAll('.selected, .highlighted').length, 0);
         assert.ok(reset);
+    });
+
+    it('focus-section attribute zooms the viewBox and selects the section', () => {
+        const el = makeLoaded();
+        el.setAttribute('focus-section', 'Flugplatz');
+
+        const viewBox = svgOf(el).getAttribute('viewBox')!;
+        assert.notStrictEqual(viewBox, '0 0 800 600');
+        assert.ok(svgOf(el).querySelector('[data-section="Flugplatz"]')!.classList.contains('selected'));
+    });
+
+    it('clearing focus-section returns to the full-track view', () => {
+        const el = makeLoaded({ 'focus-section': 'Flugplatz' });
+        assert.notStrictEqual(svgOf(el).getAttribute('viewBox'), '0 0 800 600');
+
+        el.removeAttribute('focus-section');
+        assert.strictEqual(svgOf(el).getAttribute('viewBox'), '0 0 800 600');
+        assert.strictEqual(svgOf(el).querySelectorAll('.selected').length, 0);
+    });
+
+    it('focusedSection property reflects to the focus-section attribute', () => {
+        const el = makeLoaded();
+        assert.strictEqual(el.focusedSection, null);
+
+        el.focusedSection = 'Hatzenbach';
+        assert.strictEqual(el.getAttribute('focus-section'), 'Hatzenbach');
+        assert.notStrictEqual(svgOf(el).getAttribute('viewBox'), '0 0 800 600');
+
+        el.focusedSection = null;
+        assert.strictEqual(el.getAttribute('focus-section'), null);
+        assert.strictEqual(svgOf(el).getAttribute('viewBox'), '0 0 800 600');
+    });
+
+    it('honors focus-section set before the GPX has loaded', () => {
+        const el = make({ 'focus-section': 'Flugplatz' });
+        el.loadFromString(FIXTURE_GPX);
+        assert.notStrictEqual(svgOf(el).getAttribute('viewBox'), '0 0 800 600');
+        assert.ok(svgOf(el).querySelector('[data-section="Flugplatz"]')!.classList.contains('selected'));
+    });
+
+    it('focus-padding controls the zoom margin of the declarative focus', () => {
+        const tight = makeLoaded({ 'focus-section': 'Flugplatz', 'focus-padding': '0' });
+        const loose = makeLoaded({ 'focus-section': 'Flugplatz', 'focus-padding': '100' });
+
+        const widthOf = (el: RingTrackMap) => Number(svgOf(el).getAttribute('viewBox')!.split(' ')[2]);
+        assert.ok(widthOf(loose) > widthOf(tight), 'larger padding yields a wider viewBox');
     });
 });
 

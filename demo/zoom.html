@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zoom to section — ring-webcomponents</title>
+    <script type="module" src="../dist/index.js"></script>
+    <style>
+        body {
+            margin: 0;
+            font: 16px/1.6 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+            color: #1a1a1a;
+            background: #fafafa;
+        }
+        .container { max-width: 960px; margin: 0 auto; padding: 24px 16px 64px; }
+        h1 { margin: 0 0 4px; }
+        .subtitle { color: #666; margin: 0 0 16px; }
+        nav { margin-bottom: 24px; font-size: 14px; }
+        nav a { color: #2b6cb0; }
+        .card {
+            background: #fff; border: 1px solid #e2e2e2; border-radius: 8px;
+            padding: 16px; margin-bottom: 24px;
+        }
+        .controls {
+            margin-bottom: 16px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+        }
+        button, select {
+            font: inherit; font-size: 14px; padding: 6px 12px;
+            border: 1px solid #ccc; border-radius: 6px; background: #fff; cursor: pointer;
+        }
+        button:hover { background: #f0f0f0; }
+        button.active { background: #2b6cb0; color: #fff; border-color: #2b6cb0; }
+        .sections { display: flex; gap: 8px; flex-wrap: wrap; }
+        label { font-size: 14px; color: #666; display: inline-flex; gap: 8px; align-items: center; }
+        .resizable {
+            position: relative;
+            width: 100%;
+            height: 560px;
+            min-width: 280px;
+            min-height: 220px;
+            max-width: 100%;
+            resize: both;
+            overflow: hidden;
+            border: 1px dashed #cbd5e0;
+            border-radius: 6px;
+        }
+        /* Only animate when a preset drives the size; manual drag stays 1:1. */
+        .resizable.animating { transition: width 0.4s ease, height 0.4s ease; }
+        .resizable ring-track-map { display: block; width: 100%; height: 100%; }
+        .resize-hint { color: #999; font-size: 13px; }
+        code {
+            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+            background: #f0f0f0; padding: 1px 5px; border-radius: 4px; font-size: 13px;
+        }
+        .snippet {
+            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+            font-size: 13px; background: #16181c; color: #d6e9d8;
+            border-radius: 6px; padding: 12px; white-space: pre-wrap; margin: 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Zoom to section</h1>
+        <p class="subtitle">
+            Zoom the track map into a specific part of the Nordschleife by setting a property —
+            no imperative calls needed.
+        </p>
+        <nav>
+            <a href="./index.html">← demo index</a> ·
+            <a href="./explorer.html">section explorer</a> ·
+            <a href="./heatmap.html">gradient heatmap</a>
+        </nav>
+
+        <div class="card">
+            <div class="controls sections" id="sections"></div>
+            <div class="controls">
+                <label>
+                    Padding
+                    <input type="range" id="padding" min="0" max="200" value="50" step="10">
+                    <span id="padding-value">50</span>
+                </label>
+                <label>
+                    <input type="checkbox" id="toggle-labels" checked>
+                    Show labels
+                </label>
+                <button id="btn-fit">Zoom to fit</button>
+                <button id="btn-reset">Reset to full track</button>
+            </div>
+            <div class="controls">
+                <span style="font-size:14px;color:#666;">Map size:</span>
+                <button id="size-default">Fill width</button>
+                <button id="size-compact">Compact</button>
+                <button id="size-tall">Tall</button>
+                <span class="resize-hint">…or drag the lower-right corner to resize</span>
+            </div>
+            <div class="resizable" id="map-frame">
+                <ring-track-map id="map" gpx-url="./nordschleife.gpx" show-labels></ring-track-map>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2 style="margin:0 0 12px;font-size:18px;">How it works</h2>
+            <p style="margin:0 0 12px;">
+                Set the <code>focus-section</code> attribute (or the <code>focusedSection</code>
+                property) to a section name and the map zooms to it. Adjust the margin with
+                <code>focus-padding</code>. Clear it to zoom back out.
+            </p>
+            <p style="margin:0 0 12px;">
+                The map scales to its container via the SVG <code>viewBox</code>, so resizing the
+                frame (drag the corner, or use the size buttons) reflows smoothly with no re-layout.
+            </p>
+            <pre class="snippet" id="snippet"></pre>
+        </div>
+    </div>
+
+    <script type="module">
+        const map = document.getElementById('map');
+        const frame = document.getElementById('map-frame');
+        const sectionsEl = document.getElementById('sections');
+        const paddingInput = document.getElementById('padding');
+        const paddingValue = document.getElementById('padding-value');
+        const snippet = document.getElementById('snippet');
+
+        // A curated set of famous corners and straights.
+        const SECTIONS = [
+            'Hatzenbach', 'Flugplatz', 'Schwedenkreuz', 'Fuchsröhre',
+            'Kallenhard', 'Wehrseifen', 'Klostertalkurve', 'Brünnchen',
+            'Schwalbenschwanz', 'Galgenkopf', 'Döttinger Höhe',
+        ];
+
+        for (const name of SECTIONS) {
+            const btn = document.createElement('button');
+            btn.textContent = name;
+            btn.addEventListener('click', () => focus(name));
+            sectionsEl.appendChild(btn);
+        }
+
+        function syncButtons() {
+            for (const btn of sectionsEl.children) {
+                btn.classList.toggle('active', btn.textContent === map.focusedSection);
+            }
+        }
+
+        function updateSnippet() {
+            const name = map.focusedSection;
+            snippet.textContent = name
+                ? `map.focusedSection = '${name}';\nmap.setAttribute('focus-padding', '${paddingInput.value}');`
+                : `map.focusedSection = null; // full track`;
+        }
+
+        function focus(name) {
+            // Declarative zoom: just set the property.
+            map.focusedSection = name;
+            syncButtons();
+            updateSnippet();
+        }
+
+        // --- map sizing: smooth, animated resizes; the SVG viewBox does the rest ---
+        // Animate only for preset-driven changes; drop the class once it settles so
+        // dragging the corner stays instant.
+        frame.addEventListener('transitionend', () => frame.classList.remove('animating'));
+
+        function resizeFrame(width, height) {
+            frame.classList.add('animating');
+            frame.style.width = width;
+            frame.style.height = height;
+        }
+
+        document.getElementById('size-default').addEventListener('click', () => resizeFrame('100%', '560px'));
+        document.getElementById('size-compact').addEventListener('click', () => resizeFrame('480px', '320px'));
+        document.getElementById('size-tall').addEventListener('click', () => resizeFrame('100%', '720px'));
+
+        document.getElementById('toggle-labels').addEventListener('change', (e) => {
+            map.toggleAttribute('show-labels', e.target.checked);
+        });
+
+        paddingInput.addEventListener('input', () => {
+            paddingValue.textContent = paddingInput.value;
+            map.setAttribute('focus-padding', paddingInput.value);
+            updateSnippet();
+        });
+
+        // "Zoom to fit": shrink the padding to 0 so the selected section fills
+        // the frame as tightly as the aspect ratio allows. With nothing selected,
+        // there's nothing to fit — fall back to the full track.
+        document.getElementById('btn-fit').addEventListener('click', () => {
+            if (!map.focusedSection) {
+                map.focusedSection = null;
+                syncButtons();
+                updateSnippet();
+                return;
+            }
+            paddingInput.value = '0';
+            paddingValue.textContent = '0';
+            map.setAttribute('focus-padding', '0'); // re-zooms the focused section
+            updateSnippet();
+        });
+
+        document.getElementById('btn-reset').addEventListener('click', () => {
+            map.focusedSection = null;
+            syncButtons();
+            updateSnippet();
+        });
+
+        updateSnippet();
+    </script>
+</body>
+</html>

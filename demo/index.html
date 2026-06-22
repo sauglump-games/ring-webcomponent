@@ -58,7 +58,7 @@
     <div class="container">
         <h1>ring-webcomponents</h1>
         <p class="subtitle">Vanilla web components for the Nürburgring Nordschleife — built with banira.</p>
-        <p class="subtitle">More demos: <a href="./explorer.html">section explorer / encyclopedia</a> · <a href="./heatmap.html">gradient heatmap</a></p>
+        <p class="subtitle">More demos: <a href="./zoom.html">zoom to section</a> · <a href="./explorer.html">section explorer / encyclopedia</a> · <a href="./heatmap.html">gradient heatmap</a></p>
 
         <div class="card">
             <h2>&lt;ring-i18n&gt; — <span data-i18n="ui.language">Language</span></h2>
@@ -73,6 +73,8 @@
             <h2>&lt;ring-track-map&gt; — <span data-i18n="ui.trackMap">Track Map</span></h2>
             <div class="controls">
                 <button id="btn-labels">Toggle labels</button>
+                <button id="btn-labels-famous">Only label famous sections</button>
+                <button id="btn-labels-all">Label all sections</button>
                 <button id="btn-highlight">Highlight Fuchsröhre + Brünnchen</button>
                 <button id="btn-focus">Focus Caracciola-Karussell section</button>
                 <button id="btn-reset">Reset view</button>
@@ -125,14 +127,24 @@
         document.getElementById('btn-labels').addEventListener('click', () => {
             map.toggleAttribute('show-labels');
         });
+        document.getElementById('btn-labels-famous').addEventListener('click', () => {
+            // Control which names are shown — only label these sections.
+            map.setAttribute('show-labels', '');
+            map.labelSections = ['Fuchsröhre', 'Brünnchen', 'Schwedenkreuz', 'Flugplatz', 'Döttinger Höhe'];
+        });
+        document.getElementById('btn-labels-all').addEventListener('click', () => {
+            map.labelSections = null; // show every label again
+        });
         document.getElementById('btn-highlight').addEventListener('click', () => {
             map.setSectionColors({ 'Fuchsröhre': '#e67e22', 'Brünnchen': '#8e44ad' });
             map.highlightSections(['Fuchsröhre', 'Brünnchen']);
         });
         document.getElementById('btn-focus').addEventListener('click', () => {
-            map.focusSection('Klostertalkurve');
+            // Declarative zoom: set the property instead of calling focusSection().
+            map.focusedSection = 'Klostertalkurve';
         });
         document.getElementById('btn-reset').addEventListener('click', () => {
+            map.focusedSection = null;
             map.resetView();
         });
         document.getElementById('btn-units').addEventListener('click', () => {

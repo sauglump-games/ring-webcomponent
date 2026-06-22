@@ -3,7 +3,11 @@
  * Renders the track from GPX data (via the `gpx-url` attribute or
  * {@link RingTrackMap.loadFromString}) with the 21 named sections as
  * clickable, hoverable segments. Sections can be highlighted, colored,
- * and zoomed to.
+ * and zoomed to — imperatively via {@link RingTrackMap.focusSection} or
+ * declaratively via the `focus-section` attribute / `focusedSection` property.
+ * Which section labels appear is controllable via the `label-sections`
+ * attribute (a whitelist) and per-section text overrides
+ * ({@link RingTrackMap.setSectionLabel}; an empty string hides a label).
  *
  * @fires map-ready - Track data is parsed and the SVG is rendered
  * @fires section-click - A section segment was clicked
@@ -118,7 +122,7 @@ const TEMPLATE = `
 
 export class RingTrackMap extends HTMLElement {
     static get observedAttributes(): string[] {
-        return ['gpx-url', 'highlight-sections', 'show-labels'];
+        return ['gpx-url', 'highlight-sections', 'show-labels', 'label-sections', 'focus-section', 'focus-padding'];
     }
 
     private readonly root: ShadowRoot;
@@ -129,6 +133,8 @@ export class RingTrackMap extends HTMLElement {
     /** Index into {@link trackSections}; identity survives re-render, not reload. */
     private selectedIndex: number | null = null;
     private readonly sectionColors = new Map<string, string>();
+    /** Per-section label overrides; an empty string hides that section's label. */
+    private readonly sectionLabels = new Map<string, string>();
     /** Current viewBox, preserved across re-renders; null means the full track. */
     private currentViewBox: string | null = null;
     /** Monotonic id so a slow fetch can't overwrite a newer one (#13). */
@@ -154,6 +160,43 @@ export class RingTrackMap extends HTMLElement {
         return this.trackSections.slice();
     }
 
+    /**
+     * The section the view is zoomed to, reflected to the `focus-section`
+     * attribute. Assign a section name to zoom in, or `null` to zoom back out
+     * to the full track.
+     */
+    get focusedSection(): string | null {
+        return this.getAttribute('focus-section');
+    }
+
+    set focusedSection(name: string | null) {
+        if (name) {
+            this.setAttribute('focus-section', name);
+        } else {
+            this.removeAttribute('focus-section');
+        }
+    }
+
+    /**
+     * The section names whose labels are shown, reflected to the
+     * `label-sections` attribute. When `null` (the default), every section is
+     * labelled; assign an array to restrict labels to just those sections.
+     * Has no effect unless labels are enabled via `show-labels`.
+     */
+    get labelSections(): string[] | null {
+        const attr = this.getAttribute('label-sections');
+        if (attr === null) return null;
+        return attr.split(',').map((s) => s.trim()).filter(Boolean);
+    }
+
+    set labelSections(names: string[] | string | null) {
+        if (names === null) {
+            this.removeAttribute('label-sections');
+        } else {
+            this.setAttribute('label-sections', Array.isArray(names) ? names.join(',') : names);
+        }
+    }
+
     connectedCallback(): void {
         if (!this.rendered) {
             this.root.innerHTML = TEMPLATE;
@@ -172,9 +215,42 @@ export class RingTrackMap extends HTMLElement {
             void this.loadFromUrl();
         } else if (name === 'highlight-sections') {
             this.applyHighlights();
+        } else if (name === 'label-sections') {
+            this.refreshLabels();
+        } else if (name === 'focus-section') {
+            this.applyFocusFromAttribute(newValue);
+        } else if (name === 'focus-padding') {
+            // Re-apply the existing focus with the new padding, if any.
+            this.applyFocusFromAttribute(this.getAttribute('focus-section'));
         } else if (this.data) {
             this.renderTrack();
         }
+    }
+
+    /**
+     * Drive the declarative zoom from the `focus-section` attribute: a section
+     * name zooms to it, an empty/removed value returns to the full track. A
+     * no-op until data has loaded — {@link renderTrack} re-applies it once the
+     * sections exist, so the attribute may be set before the GPX arrives.
+     */
+    private applyFocusFromAttribute(name: string | null): void {
+        const target = name?.trim();
+        if (!this.data || this.trackSections.length === 0) return;
+        if (!target) {
+            // Only reset if we were actually zoomed in; avoids clobbering an
+            // untouched full-track view (and its highlights) on a spurious clear.
+            if (this.currentViewBox !== null) this.resetView();
+            return;
+        }
+        this.focusSection(target, this.focusPadding());
+    }
+
+    /** Padding (in SVG units) for declarative focus; falls back to the default. */
+    private focusPadding(): number {
+        const raw = this.getAttribute('focus-padding');
+        if (raw === null) return 50;
+        const n = Number(raw);
+        return Number.isFinite(n) ? n : 50;
     }
 
     /** Fetch and render the GPX document referenced by `gpx-url`. */
@@ -271,6 +347,12 @@ export class RingTrackMap extends HTMLElement {
         container.appendChild(svg);
 
         this.applyHighlights();
+
+        // Honor a `focus-section` set before the GPX loaded, or re-apply it
+        // after a fresh render (e.g. toggling labels) clears the highlight.
+        if (this.currentViewBox === null) {
+            this.applyFocusFromAttribute(this.getAttribute('focus-section'));
+        }
     }
 
     /** Boolean attribute with the literal string `"false"` treated as off (#15). */
@@ -280,14 +362,24 @@ export class RingTrackMap extends HTMLElement {
 
     private addLabels(svg: SVGSVGElement): void {
         const doc = this.ownerDocument;
+        const only = this.labelFilter();
         for (const section of this.trackSections) {
+            // Restrict to the `label-sections` subset, when one is set.
+            if (only && !only.has(section.name)) continue;
+
+            // An override renames the label; an empty override hides it.
+            const text = this.sectionLabels.has(section.name)
+                ? this.sectionLabels.get(section.name)!
+                : section.name;
+            if (text === '') continue;
+
             const coord = section.coordinates[Math.floor(section.coordinates.length / 2)];
             if (!coord) continue;
 
             const labelGroup = createSVGElement(doc, 'g', { class: 'section-label-group' });
 
             // No layout in jsdom and no text metrics pre-render: approximate.
-            const textWidth = section.name.length * 6;
+            const textWidth = text.length * 6;
             const textHeight = 16;
             const padding = 4;
 
@@ -305,13 +397,51 @@ export class RingTrackMap extends HTMLElement {
                 x: coord.x,
                 y: coord.y + 4,
                 'text-anchor': 'middle',
+                'data-section': section.name,
             });
-            label.textContent = section.name;
+            label.textContent = text;
 
             labelGroup.appendChild(bg);
             labelGroup.appendChild(label);
             svg.appendChild(labelGroup);
         }
+    }
+
+    /** The `label-sections` whitelist as a Set, or null when unset (label all). */
+    private labelFilter(): Set<string> | null {
+        const names = this.labelSections;
+        return names ? new Set(names) : null;
+    }
+
+    /** Rebuild just the section labels in place, preserving zoom and highlights. */
+    private refreshLabels(): void {
+        const svg = this.root.querySelector('svg');
+        if (!svg) return;
+        for (const group of svg.querySelectorAll('.section-label-group')) group.remove();
+        if (this.labelsEnabled()) this.addLabels(svg);
+    }
+
+    /**
+     * Override the label text for a section, or pass `''` to hide it. Only takes
+     * effect while labels are enabled (`show-labels`).
+     */
+    setSectionLabel(sectionName: string, label: string): void {
+        this.sectionLabels.set(sectionName, label);
+        this.refreshLabels();
+    }
+
+    /** Override (or hide, with `''`) the labels of several sections at once. */
+    setSectionLabels(labelMap: Record<string, string>): void {
+        for (const [name, label] of Object.entries(labelMap)) {
+            this.sectionLabels.set(name, label);
+        }
+        this.refreshLabels();
+    }
+
+    /** Remove all label overrides, restoring each section's own name. */
+    clearSectionLabels(): void {
+        this.sectionLabels.clear();
+        this.refreshLabels();
     }
 
     private sectionDetail(section: TrackSection): SectionEventDetail {
